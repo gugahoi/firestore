@@ -12,12 +12,13 @@ func main() {
 	var err error
 
 	client := createClient(context.Background())
+	defer client.Close()
 
 	switch cmd {
 	case "document":
 		err = NewDocument(client).Run(os.Args[2:])
-	// case "collection":
-	// 	err = NewCollection(client).Run(os.Args[2:])
+	case "collection":
+		err = NewCollection(client).Run(os.Args[2:])
 	default:
 		log.Fatalln("unknown command, supported commands are: document, collection")
 	}

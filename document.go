@@ -27,6 +27,9 @@ func (d Document) Run(args []string) error {
 		src := args[1]
 		dst := args[2]
 		err = d.copy(src, dst)
+	case "rm":
+		src := args[1]
+		err = d.delete(src)
 	default:
 		err = fmt.Errorf("action not found, available: mv, cp")
 	}
@@ -74,5 +77,18 @@ func (d Document) copy(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write destination document: %v", err)
 	}
+	return nil
+}
+
+// delete deletes a document.
+func (d Document) delete(src string) error {
+	ctx := context.Background()
+
+	srcRef := d.client.Doc(strings.TrimPrefix(src, "/"))
+	_, err := srcRef.Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete document: %v", err)
+	}
+
 	return nil
 }

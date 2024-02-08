@@ -6,18 +6,18 @@ Firestore is a command line utility to facilitate operations with Firestore from
 
 ### Documents
 
-- [ ] read
-- [ ] write
-- [ ] delete
+- [ ] download
+- [ ] upload
+- [x] delete
 - [x] move
 - [x] copy
 
 ### Collections
 
-- [ ] read
-- [ ] write
-- [ ] rename
-- [ ] delete
+- [ ] download
+- [ ] upload
+- [x] copy
+- [x] delete
 - [ ] query
 
 ## Firestore Emulator

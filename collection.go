@@ -19,14 +19,17 @@ func NewCollection(client *firestore.Client) Collection {
 }
 
 func (c Collection) Run(args []string) error {
-	src := args[1]
-	dst := args[2]
-
 	var err error
+	action := args[0]
 
-	switch args[0] {
+	switch action {
 	case "cp":
+		src := args[1]
+		dst := args[2]
 		err = c.copy(src, dst)
+	case "rm":
+		src := args[1]
+		err = c.rm(src)
 	default:
 		return fmt.Errorf("action not found, available: cp")
 	}
@@ -70,5 +73,42 @@ func (c Collection) copy(src, dst string) error {
 	if len(errs) != 0 {
 		return fmt.Errorf("the following errors occurred: %v", errs)
 	}
+	return nil
+}
+
+// rm is used to remove all document in a collection.
+func (c Collection) rm(src string) error {
+	ctx := context.Background()
+	col := c.client.Collection(strings.TrimPrefix(src, "/"))
+	bulkwriter := c.client.BulkWriter(ctx)
+
+	for {
+		// Get a batch of documents
+		iter := col.Limit(10).Documents(ctx)
+		numDeleted := 0
+
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+
+			bulkwriter.Delete(doc.Ref)
+			numDeleted++
+		}
+
+		// If there are no documents to delete,
+		// the process is over.
+		if numDeleted == 0 {
+			bulkwriter.End()
+			break
+		}
+
+		bulkwriter.Flush()
+	}
+
 	return nil
 }

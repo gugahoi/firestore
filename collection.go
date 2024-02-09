@@ -7,6 +7,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Collection is used to process commands related to collection actions.
@@ -47,26 +49,43 @@ type CollectionCopyError struct {
 
 // copy is used to copy every document in a collection.
 func (c Collection) copy(src, dst string) error {
+	ctx := context.Background()
 	doc := NewDocument(c.client)
 	errs := []CollectionCopyError{}
 
-	srcRefs := c.client.Collection(src).DocumentRefs(context.Background())
+	srcRefs := c.client.Collection(strings.TrimPrefix(src, "/")).DocumentRefs(ctx)
 	for {
 		docRef, err := srcRefs.Next()
 		if err == iterator.Done {
 			break
 		}
-		// TODO: should we do something about this error case?
-		// if err != nil {
-		// 	readErrors = append(readErrors, docRef.Path+"(ref-error)")
-		// }
+		if err != nil {
+			errs = append(errs, CollectionCopyError{sourcePath: docRef.Path, action: "reading", err: err})
+			continue
+		}
 
 		srcPath := strings.Join([]string{src, docRef.ID}, "/")
 		dstPath := strings.Join([]string{dst, docRef.ID}, "/")
-		fmt.Println("src:", srcPath, "dst:", dstPath)
+
+		// check for subcollections recursively
+		iter := c.client.Doc(strings.TrimPrefix(srcPath, "/")).Collections(ctx)
+		for {
+			collection, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			srcSubCollection := strings.Join([]string{srcPath, collection.ID}, "/")
+			dstSubCollection := strings.Join([]string{dstPath, collection.ID}, "/")
+			if err = c.copy(srcSubCollection, dstSubCollection); err != nil {
+				errs = append(errs, CollectionCopyError{sourcePath: srcSubCollection, action: "subcollection copy", err: err, destinationPath: dstSubCollection})
+			}
+		}
 
 		if err = doc.copy(srcPath, dstPath); err != nil {
-			errs = append(errs, CollectionCopyError{sourcePath: docRef.Path, action: "copy", err: err, destinationPath: dstPath})
+			// if the document is NotFound, we don't need to register the error since it might still have subcollections.
+			if status.Code(err) != codes.NotFound {
+				errs = append(errs, CollectionCopyError{sourcePath: srcPath, action: "copy", err: err, destinationPath: dstPath})
+			}
 		}
 	}
 

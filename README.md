@@ -2,22 +2,30 @@
 
 Firestore is a command line utility to facilitate operations with Firestore from the command line.
 
-## Features
+## Usage
+
+```
+export PROJECT_ID=my-project
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+firestore document cp /my-collection/my-document /my-collection/another-document
+```
+
+## Supported Features
 
 ### Documents
 
-- [ ] download
-- [ ] upload
 - [x] delete
 - [x] move
 - [x] copy
+- [ ] download
+- [ ] upload
 
 ### Collections
 
-- [ ] download
-- [ ] upload
 - [x] copy
 - [x] delete
+- [ ] download
+- [ ] upload
 - [ ] query
 
 ## Firestore Emulator

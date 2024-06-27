@@ -9,6 +9,10 @@ import (
 func main() {
 	// remove timestamp from log lines
 	log.SetFlags(0)
+
+	if len(os.Args) == 1 {
+		usage()
+	}
 	cmd := os.Args[1]
 
 	var err error
@@ -22,11 +26,22 @@ func main() {
 	case "collection":
 		err = NewCollection(client).Run(os.Args[2:])
 	default:
-		log.Fatalln("unknown command, supported commands are: document, collection")
+		usage()
 	}
 
 	if err != nil {
 		log.Fatalf("operation failed: %v", err)
 	}
 	os.Exit(0)
+}
+
+// usage prints the usage message for this CLI.
+func usage() {
+	log.Fatalln(`
+Usage:
+	firestore [command] [subcommand] ...args
+
+Example:
+	firestore document get /path/to/document/here
+	`)
 }

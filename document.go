@@ -26,9 +26,16 @@ Description:
 	Perform actions on firestore documents.
 Usage: 
 	firestore document [action] <...args>
-Example: 
-	firestore document get <path>
-	firestore document cp <source> <destination>
+Actions:
+	get - retrieves a document and prints its contents to the console
+	mv  - moves a document from the source to the destination, deleting the source document
+	cp  - copies a document from the source to the destination
+	rm  - deletes a document
+Examples: 
+	firestore document get /path/to/document/here
+	firestore document cp /path/to/source/document /path/to/destination/document
+	firestore document mv /path/to/source/document /path/to/destination/document
+	firestore document rm /path/to/document/here
 	`)
 }
 

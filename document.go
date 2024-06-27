@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"cloud.google.com/go/firestore"
@@ -19,6 +20,7 @@ func NewDocument(client *firestore.Client) Document {
 }
 
 func (d Document) usage() {
+	log.SetOutput(os.Stderr)
 	log.Fatalln(`
 Description:
 	Perform actions on firestore documents.

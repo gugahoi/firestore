@@ -9,6 +9,7 @@ import (
 func main() {
 	// remove timestamp from log lines
 	log.SetFlags(0)
+	log.SetOutput(os.Stdout)
 
 	if len(os.Args) == 1 {
 		usage()
@@ -30,6 +31,7 @@ func main() {
 	}
 
 	if err != nil {
+		log.SetOutput(os.Stderr)
 		log.Fatalf("operation failed: %v", err)
 	}
 	os.Exit(0)
@@ -37,6 +39,7 @@ func main() {
 
 // usage prints the usage message for this CLI.
 func usage() {
+	log.SetOutput(os.Stderr)
 	log.Fatalln(`
 Usage:
 	firestore [command] [subcommand] ...args

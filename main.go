@@ -7,6 +7,8 @@ import (
 )
 
 func main() {
+	// remove timestamp from log lines
+	log.SetFlags(0)
 	cmd := os.Args[1]
 
 	var err error

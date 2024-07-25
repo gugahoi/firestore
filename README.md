@@ -17,8 +17,8 @@ firestore document cp /my-collection/my-document /my-collection/another-document
 - [x] delete
 - [x] move
 - [x] copy
-- [ ] download
-- [ ] upload
+- [x] download
+- [x] add
 
 ### Collections
 

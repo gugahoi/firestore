@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -27,11 +28,13 @@ Description:
 Usage: 
 	firestore document [action] <...args>
 Actions:
+	add - adds a new document with contents from STDIN
 	get - retrieves a document and prints its contents to the console
 	mv  - moves a document from the source to the destination, deleting the source document
 	cp  - copies a document from the source to the destination
 	rm  - deletes a document
 Examples: 
+	firestore document add /path/to/document/here < file.json
 	firestore document get /path/to/document/here
 	firestore document cp /path/to/source/document /path/to/destination/document
 	firestore document mv /path/to/source/document /path/to/destination/document
@@ -51,6 +54,10 @@ func (d Document) Run(args []string) error {
 	action := args[0]
 
 	switch action {
+	case "add":
+		d.checkArgs(args, 2)
+		path := args[1]
+		err = d.add(path)
 	case "get":
 		d.checkArgs(args, 2)
 		src := args[1]
@@ -148,6 +155,30 @@ func (d Document) delete(src string) error {
 	_, err := srcRef.Delete(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete document: %v", err)
+	}
+
+	return nil
+}
+
+// Add adds a document with contents from STDIN
+func (d Document) add(path string) error {
+	ctx := context.Background()
+
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("failed to read input: %v", err)
+	}
+
+	var data map[string]any
+	err = json.Unmarshal(input, &data)
+	if err != nil {
+		return fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	srcRef := d.client.Doc(strings.TrimPrefix(path, "/"))
+	_, err = srcRef.Create(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to create document: %v", err)
 	}
 
 	return nil

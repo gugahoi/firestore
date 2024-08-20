@@ -46,5 +46,8 @@ Usage:
 
 Example:
 	firestore document get /path/to/document/here
-	`)
+
+Commands:
+	document: do things with documents
+	collection: do things with collections`)
 }

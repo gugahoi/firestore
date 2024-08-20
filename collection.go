@@ -30,12 +30,13 @@ Description:
 Usage: 
 	firestore collection [action] <...args>
 Actions:
-	cp - copies a collection from the source to the destination, recursively
-	rm - deletes a collection
+	cp - copy a collection from the source to the destination, recursively
+	rm - delete a collection
+	ls - list document ids in the collection
 Examples: 
 	firestore collection cp /source/collection/path /destination/collection/path
 	firestore collection rm /path/to/collection
-	`)
+	firestore collection ls /path/to/collection`)
 
 }
 func (c Collection) checkArgs(args []string, size int) {
@@ -55,6 +56,10 @@ func (c Collection) Run(args []string) error {
 		src := args[1]
 		dst := args[2]
 		err = c.copy(src, dst)
+	case "ls":
+		c.checkArgs(args, 2)
+		src := args[1]
+		err = c.ls(src)
 	case "rm":
 		c.checkArgs(args, 2)
 		src := args[1]
@@ -154,6 +159,26 @@ func (c Collection) rm(src string) error {
 		}
 
 		bulkwriter.Flush()
+	}
+
+	return nil
+}
+
+// ls is used to list the documents in a collection.
+func (c Collection) ls(src string) error {
+	ctx := context.Background()
+	col := c.client.Collection(strings.TrimPrefix(src, "/"))
+	iter := col.Documents(ctx)
+
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		log.Println(doc.Ref.ID)
 	}
 
 	return nil

@@ -4,6 +4,8 @@ Firestore is a command line utility to facilitate operations with Firestore from
 
 ## Usage
 
+Currently both `PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` are required.
+
 ```
 export PROJECT_ID=my-project
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
@@ -24,6 +26,7 @@ firestore document cp /my-collection/my-document /my-collection/another-document
 
 - [x] copy
 - [x] delete
+- [x] list
 - [ ] download
 - [ ] upload
 - [ ] query

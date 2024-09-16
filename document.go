@@ -77,7 +77,7 @@ func (d Document) Run(args []string) error {
 		src := args[1]
 		err = d.delete(src)
 	default:
-		err = fmt.Errorf("action not found, available: mv, cp")
+		d.usage()
 	}
 
 	return err
@@ -97,9 +97,15 @@ func (d Document) get(src string) error {
 		return fmt.Errorf("failed to read document: %v", err)
 	}
 
+	// encoder with html escaping disabled
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+
 	// pretty print json data
-	contents, _ := json.MarshalIndent(snap.Data(), "", "    ")
-	log.Printf(string(contents))
+	if err := encoder.Encode(snap.Data()); err != nil {
+		return fmt.Errorf("failed to parse document: %v", err)
+	}
 
 	return nil
 }

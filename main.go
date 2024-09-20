@@ -1,9 +1,14 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"log"
 	"os"
+
+	"cloud.google.com/go/firestore"
+	"github.com/gugahoi/firestore/pkg/commands/collection"
+	"github.com/gugahoi/firestore/pkg/commands/document"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -11,43 +16,38 @@ func main() {
 	log.SetFlags(0)
 	log.SetOutput(os.Stdout)
 
-	if len(os.Args) == 1 {
-		usage()
+	app := cli.NewApp()
+	app.Name = "firestore"
+	app.Authors = []*cli.Author{
+		{
+			Name:  "Gustavo Hoirisch",
+			Email: "github@gustavo.com.au",
+		},
 	}
-	cmd := os.Args[1]
-
-	var err error
-
-	client := createClient(context.Background())
-	defer client.Close()
-
-	switch cmd {
-	case "document":
-		err = NewDocument(client).Run(os.Args[2:])
-	case "collection":
-		err = NewCollection(client).Run(os.Args[2:])
-	default:
-		usage()
+	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name:     "project",
+			Aliases:  []string{"p"},
+			EnvVars:  []string{"PROJECT_ID"},
+			Required: true,
+		},
+	}
+	app.Before = func(c *cli.Context) error {
+		projectID := c.String("project")
+		client, err := firestore.NewClient(c.Context, projectID)
+		if err != nil {
+			return fmt.Errorf("failed to create client: %w", err)
+		}
+		c.App.Metadata["client"] = client
+		return nil
+	}
+	app.Usage = "perform actions on firestore"
+	app.Commands = []*cli.Command{
+		document.NewDocumentCmd(),
+		collection.NewCollectionCmd(),
 	}
 
-	if err != nil {
-		log.SetOutput(os.Stderr)
-		log.Fatalf("operation failed: %v", err)
+	if err := app.Run(os.Args); err != nil {
+		log.Fatalln(err)
 	}
-	os.Exit(0)
-}
-
-// usage prints the usage message for this CLI.
-func usage() {
-	log.SetOutput(os.Stderr)
-	log.Fatalln(`
-Usage:
-	firestore [command] [subcommand] ...args
-
-Example:
-	firestore document get /path/to/document/here
-
-Commands:
-	document: do things with documents
-	collection: do things with collections`)
 }

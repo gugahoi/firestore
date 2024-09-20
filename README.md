@@ -9,7 +9,12 @@ Currently both `PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` are required.
 ```
 export PROJECT_ID=my-project
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+
+# copying a document
 firestore document cp /my-collection/my-document /my-collection/another-document
+
+# querying documents in a collection
+firestore -p demo-flux collection query --sort firstName --direction desc -f firstName==Vince -f lastName=Petersen /data
 ```
 
 ## Supported Features
@@ -29,7 +34,7 @@ firestore document cp /my-collection/my-document /my-collection/another-document
 - [x] list
 - [ ] download
 - [ ] upload
-- [ ] query
+- [x] query
 
 ## Firestore Emulator
 

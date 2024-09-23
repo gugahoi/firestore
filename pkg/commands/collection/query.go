@@ -25,6 +25,11 @@ func NewQueryCmd() *cli.Command {
 				Usage:   "field to sort by",
 			},
 			&cli.StringFlag{
+				Name:    "fields",
+				Aliases: []string{"q"},
+				Usage:   "fields to include in the response, comma separated. e.g.: id,name,age",
+			},
+			&cli.StringFlag{
 				Name:    "direction",
 				Aliases: []string{"d"},
 				Usage:   "direction to sort by (asc|desc)",
@@ -39,9 +44,15 @@ func NewQueryCmd() *cli.Command {
 			client := c.App.Metadata["client"].(*firestore.Client)
 			orderBy := parseSort(c)
 			filters := parseFilters(c)
-			return query(client, c.Args().First(), orderBy, filters)
+			fields := parseFields(c)
+			return query(client, c.Args().First(), orderBy, filters, fields)
 		},
 	}
+}
+
+func parseFields(c *cli.Context) []string {
+	fields := c.String("fields")
+	return strings.Split(fields, ",")
 }
 
 type Filter struct {
@@ -98,8 +109,8 @@ func parseSort(c *cli.Context) *OrderBy {
 	return &orderBy
 }
 
-func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]Filter) error {
-	collection := client.Collection(path)
+func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]Filter, fields []string) error {
+	collection := client.Collection(strings.TrimPrefix(path, "/"))
 	if collection == nil {
 		return fmt.Errorf("invalid path: %q", path)
 	}
@@ -112,6 +123,8 @@ func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]F
 		query = query.Where(filter.Field, filter.Operator, filter.Value)
 	}
 
+	query = query.Select(fields...)
+
 	iter := query.Documents(context.Background())
 	w := tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)
 	for {
@@ -122,7 +135,7 @@ func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]F
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(w, doc.Ref.ID, doc.Data())
+		fmt.Fprintf(w, "%+v\n", doc.Data())
 	}
 	w.Flush()
 

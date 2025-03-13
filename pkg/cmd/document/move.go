@@ -6,20 +6,22 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 )
 
-func NewMoveCmd() *cli.Command {
-	return &cli.Command{
-		Name:        "move",
-		Aliases:     []string{"mv"},
-		Description: "moves a document from the source to the destination, deleting the source document",
-		Usage:       "firestore document move <source> <destination>",
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			return move(client, c.Args().Get(0), c.Args().Get(1))
+func NewMoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "move <source> <destination>",
+		Aliases: []string{"mv"},
+		Short:   "moves a document from the source to the destination, deleting the source document",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			return move(client, args[0], args[1])
 		},
 	}
+	return cmd
 }
 
 // move moves a document from the source to the destination, deleting the

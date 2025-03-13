@@ -5,20 +5,23 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 	"google.golang.org/api/iterator"
 )
 
-func NewDeleteCmd() *cli.Command {
-	return &cli.Command{
-		Name:    "delete",
+func NewDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "delete [collection]",
 		Aliases: []string{"rm"},
-		Usage:   "deletes all documents in a collection",
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			return delete(client, c.Args().First())
+		Short:   "deletes all documents in a collection",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			return delete(client, args[0])
 		},
 	}
+	return cmd
 }
 
 // rm is used to remove all document in a collection.

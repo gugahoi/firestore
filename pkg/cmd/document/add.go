@@ -9,19 +9,21 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 )
 
-func NewAddCmd() *cli.Command {
-	return &cli.Command{
-		Name:        "add",
-		Description: "adds a new document with contents from STDIN",
-		Usage:       "firestore document add <path>",
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			return add(client, c.Args().First())
+func NewAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add <path>",
+		Short: "adds a new document with contents from STDIN",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			return add(client, args[0])
 		},
 	}
+	return cmd
 }
 
 // Add adds a document with contents from STDIN

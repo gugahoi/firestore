@@ -8,64 +8,55 @@ import (
 	"text/tabwriter"
 
 	"cloud.google.com/go/firestore"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 	"google.golang.org/api/iterator"
 )
 
-func NewQueryCmd() *cli.Command {
-	return &cli.Command{
-		Name:    "query",
+func NewQueryCmd() *cobra.Command {
+	var (
+		sort      string
+		fields    string
+		direction string
+		filters   []string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "query [collection]",
 		Aliases: []string{"q"},
-		Usage:   "perform queries on firestore collections",
-		Args:    true,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "sort",
-				Aliases: []string{"s"},
-				Usage:   "field to sort by",
-			},
-			&cli.StringFlag{
-				Name:    "fields",
-				Aliases: []string{"q"},
-				Usage:   "fields to include in the response, comma separated. e.g.: id,name,age",
-			},
-			&cli.StringFlag{
-				Name:    "direction",
-				Aliases: []string{"d"},
-				Usage:   "direction to sort by (asc|desc)",
-			},
-			&cli.StringSliceFlag{
-				Name:    "filters",
-				Aliases: []string{"f"},
-				Usage:   "filters to apply to the query, e.g.: id==2",
-			},
-		},
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			orderBy := parseSort(c)
-			filters := parseFilters(c)
-			fields := parseFields(c)
-			return query(client, c.Args().First(), orderBy, filters, fields)
+		Short:   "perform queries on firestore collections",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			orderBy := parseSort(sort, direction)
+			parsedFilters := parseFilters(filters)
+			parsedFields := parseFields(fields)
+			return query(client, args[0], orderBy, parsedFilters, parsedFields)
 		},
 	}
+
+	cmd.Flags().StringVarP(&sort, "sort", "s", "", "field to sort by")
+	cmd.Flags().StringVarP(&fields, "fields", "q", "", "fields to include in the response, comma separated. e.g.: id,name,age")
+	cmd.Flags().StringVarP(&direction, "direction", "d", "", "direction to sort by (asc|desc)")
+	cmd.Flags().StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
+
+	return cmd
 }
 
-func parseFields(c *cli.Context) []string {
-	fields := c.String("fields")
+func parseFields(fields string) []string {
 	return strings.Split(fields, ",")
 }
 
 type Filter struct {
 	Field    string
 	Operator string
-	Value    interface{}
+	Value    any
 }
 
 var operators = []string{"==", "<", ">", "<=", ">="}
 
-func parseFilters(c *cli.Context) *[]Filter {
+func parseFilters(filtersStrings []string) *[]Filter {
 	var filters []Filter
-	filtersStrings := c.StringSlice("filters")
 	for _, filter := range filtersStrings {
 		for _, operator := range operators {
 			parsed := strings.Split(filter, operator)
@@ -78,7 +69,6 @@ func parseFilters(c *cli.Context) *[]Filter {
 				break
 			}
 		}
-
 	}
 	return &filters
 }
@@ -88,9 +78,7 @@ type OrderBy struct {
 	Direction firestore.Direction
 }
 
-func parseSort(c *cli.Context) *OrderBy {
-	field := c.String("sort")
-
+func parseSort(field, direction string) *OrderBy {
 	if field == "" {
 		return nil
 	}
@@ -98,7 +86,6 @@ func parseSort(c *cli.Context) *OrderBy {
 	var orderBy OrderBy
 	orderBy.Path = field
 
-	direction := c.String("direction")
 	switch direction {
 	case "desc":
 		orderBy.Direction = firestore.Desc

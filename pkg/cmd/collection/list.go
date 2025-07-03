@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 
 	"cloud.google.com/go/firestore"
-	"github.com/gugahoi/firestore/pkg/cmd/keys"
 	"github.com/spf13/cobra"
 	"google.golang.org/api/iterator"
+
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
 )
 
 func NewListCmd() *cobra.Command {

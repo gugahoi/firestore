@@ -16,6 +16,7 @@ func NewDocumentCmd() *cobra.Command {
 		NewCopyCmd(),
 		NewDeleteCmd(),
 		NewGetCmd(),
+		NewListCmd(),
 		NewMoveCmd(),
 	)
 	return cmd

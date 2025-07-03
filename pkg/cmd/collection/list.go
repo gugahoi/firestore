@@ -33,7 +33,8 @@ func list(client *firestore.Client, src string) error {
 	col := client.Collection(strings.TrimPrefix(src, "/"))
 	iter := col.Documents(ctx)
 
-	w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, 1, 1)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -42,7 +43,7 @@ func list(client *firestore.Client, src string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(w, doc.Ref.ID, doc.CreateTime.Local(), doc.Ref.Parent.Path)
+		fmt.Fprintf(w, "%s\t%s\n", doc.Ref.ID, doc.CreateTime.Local().Format("2006-01-02 15:04:05"))
 	}
 	w.Flush()
 

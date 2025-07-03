@@ -8,9 +8,10 @@ import (
 	"text/tabwriter"
 
 	"cloud.google.com/go/firestore"
-	"github.com/gugahoi/firestore/pkg/cmd/keys"
 	"github.com/spf13/cobra"
 	"google.golang.org/api/iterator"
+
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
 )
 
 func NewQueryCmd() *cobra.Command {
@@ -19,6 +20,7 @@ func NewQueryCmd() *cobra.Command {
 		fields    string
 		direction string
 		filters   []string
+		showID    bool
 	)
 
 	cmd := &cobra.Command{
@@ -31,7 +33,7 @@ func NewQueryCmd() *cobra.Command {
 			orderBy := parseSort(sort, direction)
 			parsedFilters := parseFilters(filters)
 			parsedFields := parseFields(fields)
-			return query(client, args[0], orderBy, parsedFilters, parsedFields)
+			return query(client, args[0], orderBy, parsedFilters, parsedFields, showID)
 		},
 	}
 
@@ -39,6 +41,7 @@ func NewQueryCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&fields, "fields", "q", "", "fields to include in the response, comma separated. e.g.: id,name,age")
 	cmd.Flags().StringVarP(&direction, "direction", "d", "", "direction to sort by (asc|desc)")
 	cmd.Flags().StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
+	cmd.Flags().BoolVar(&showID, "show-id", true, "show document ID in output")
 
 	return cmd
 }
@@ -96,7 +99,7 @@ func parseSort(field, direction string) *OrderBy {
 	return &orderBy
 }
 
-func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]Filter, fields []string) error {
+func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]Filter, fields []string, showID bool) error {
 	collection := client.Collection(strings.TrimPrefix(path, "/"))
 	if collection == nil {
 		return fmt.Errorf("invalid path: %q", path)
@@ -122,7 +125,11 @@ func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]F
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "%+v\n", doc.Data())
+		if showID {
+			fmt.Fprintf(w, "%s\t%+v\n", doc.Ref.ID, doc.Data())
+		} else {
+			fmt.Fprintf(w, "%+v\n", doc.Data())
+		}
 	}
 	w.Flush()
 

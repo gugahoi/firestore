@@ -21,6 +21,7 @@ func NewCollectionCmd() *cobra.Command {
 		NewDownloadCmd(),
 		NewListCmd(),
 		NewQueryCmd(),
+		NewUploadCmd(),
 	)
 
 	return cmd

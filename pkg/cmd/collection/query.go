@@ -21,6 +21,7 @@ func NewQueryCmd() *cobra.Command {
 		direction string
 		filters   []string
 		showID    bool
+		limit     int
 	)
 
 	cmd := &cobra.Command{
@@ -33,7 +34,7 @@ func NewQueryCmd() *cobra.Command {
 			orderBy := parseSort(sort, direction)
 			parsedFilters := parseFilters(filters)
 			parsedFields := parseFields(fields)
-			return query(client, args[0], orderBy, parsedFilters, parsedFields, showID)
+			return query(client, args[0], orderBy, limit, parsedFilters, parsedFields, showID)
 		},
 	}
 
@@ -41,6 +42,7 @@ func NewQueryCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&fields, "fields", "q", "", "fields to include in the response, comma separated. e.g.: id,name,age")
 	cmd.Flags().StringVarP(&direction, "direction", "d", "", "direction to sort by (asc|desc)")
 	cmd.Flags().StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
+	cmd.Flags().IntVarP(&limit, "limit", "l", 0, "maximum number of documents to return, 0 for no limit")
 	cmd.Flags().BoolVar(&showID, "show-id", true, "show document ID in output")
 
 	return cmd
@@ -99,7 +101,7 @@ func parseSort(field, direction string) *OrderBy {
 	return &orderBy
 }
 
-func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]Filter, fields []string, showID bool) error {
+func query(client *firestore.Client, path string, orderBy *OrderBy, limit int, filters *[]Filter, fields []string, showID bool) error {
 	collection := client.Collection(strings.TrimPrefix(path, "/"))
 	if collection == nil {
 		return fmt.Errorf("invalid path: %q", path)
@@ -111,6 +113,9 @@ func query(client *firestore.Client, path string, orderBy *OrderBy, filters *[]F
 	}
 	for _, filter := range *filters {
 		query = query.Where(filter.Field, filter.Operator, filter.Value)
+	}
+	if limit != 0 {
+		query = query.Limit(limit)
 	}
 
 	query = query.Select(fields...)

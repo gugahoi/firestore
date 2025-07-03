@@ -32,8 +32,8 @@ firestore -p demo-flux collection query --sort firstName --direction desc -f fir
 - [x] copy
 - [x] delete
 - [x] list
-- [ ] download
-- [ ] upload
+- [x] download
+- [x] upload
 - [x] query
 
 ## Firestore Emulator

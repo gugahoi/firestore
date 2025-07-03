@@ -8,21 +8,23 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func NewGetCmd() *cli.Command {
-	return &cli.Command{
-		Name:        "get",
-		Description: "retrieves a document and prints its contents to the console",
-		Usage:       "firestore document get <path>",
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			return get(client, c.Args().First())
+func NewGetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get <path>",
+		Short: "retrieves a document and prints its contents to the console",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			return get(client, args[0])
 		},
 	}
+	return cmd
 }
 
 // get retrieves the contents of the document and prints it to the console.

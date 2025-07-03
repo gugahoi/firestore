@@ -6,23 +6,26 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
-	"github.com/gugahoi/firestore/pkg/commands/document"
-	"github.com/urfave/cli/v2"
+	"github.com/gugahoi/firestore/pkg/cmd/document"
+	"github.com/gugahoi/firestore/pkg/cmd/keys"
+	"github.com/spf13/cobra"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func NewCopyCmd() *cli.Command {
-	return &cli.Command{
-		Name:    "copy",
+func NewCopyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "copy [source] [destination]",
 		Aliases: []string{"cp"},
-		Usage:   "copies all documents in a collection",
-		Action: func(c *cli.Context) error {
-			client := c.App.Metadata["client"].(*firestore.Client)
-			return copy(client, c.Args().Get(0), c.Args().Get(1))
+		Short:   "copies all documents in a collection",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
+			return copy(client, args[0], args[1])
 		},
 	}
+	return cmd
 }
 
 // CollectionCopyError is an error returned when copying a document fails during a collection copy action.

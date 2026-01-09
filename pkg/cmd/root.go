@@ -15,9 +15,10 @@ import (
 
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
-	Use:     "firestore",
-	Aliases: []string{"fs"},
-	Short:   "perform actions on firestore",
+	Use:          "firestore",
+	Aliases:      []string{"fs"},
+	Short:        "perform actions on firestore",
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if projectId == "" {
 			envValue := os.Getenv("PROJECT_ID")

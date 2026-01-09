@@ -28,6 +28,11 @@ var rootCmd = &cobra.Command{
 			projectId = envValue
 		}
 
+		// Set Firestore emulator host if --host flag is provided
+		if host != "" {
+			os.Setenv("FIRESTORE_EMULATOR_HOST", host)
+		}
+
 		ctx := cmd.Context()
 		client, err := firestore.NewClient(ctx, projectId)
 		if err != nil {
@@ -49,9 +54,11 @@ func Execute() {
 }
 
 var projectId string
+var host string
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&projectId, "project", "p", "", "Google Cloud Project")
+	rootCmd.PersistentFlags().StringVar(&host, "host", "", "Firestore host (e.g., localhost:8080 for emulator)")
 	rootCmd.AddCommand(document.NewDocumentCmd())
 	rootCmd.AddCommand(collection.NewCollectionCmd())
 }

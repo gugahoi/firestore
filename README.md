@@ -38,8 +38,15 @@ firestore -p demo-flux collection query --sort firstName --direction desc -f fir
 
 ## Firestore Emulator
 
-To use this tool with the Firestore Emulator you must set the `FIRESTORE_EMULATOR_HOST` environment variable to the appropriate value. For example:
+To use this tool with the Firestore Emulator, you can either set the `FIRESTORE_EMULATOR_HOST` environment variable or use the `--host` flag:
 
-```
+```bash
+# Using environment variable
 export FIRESTORE_EMULATOR_HOST=localhost:9090
+firestore document get /my-collection/my-document
+
+# Using --host flag
+firestore --host localhost:9090 document get /my-collection/my-document
 ```
+
+The `--host` flag will override the environment variable if both are set.

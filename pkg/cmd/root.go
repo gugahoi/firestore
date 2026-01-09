@@ -15,17 +15,22 @@ import (
 
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
-	Use:     "firestore",
-	Aliases: []string{"fs"},
-	Short:   "perform actions on firestore",
+	Use:          "firestore",
+	Aliases:      []string{"fs"},
+	Short:        "perform actions on firestore",
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		flagValue, _ := cmd.PersistentFlags().GetString("project")
-		if flagValue == "" {
+		if projectId == "" {
 			envValue := os.Getenv("PROJECT_ID")
 			if envValue == "" {
 				return fmt.Errorf("missing PROJECT_ID: --project (-p) [PROJECT_ID]")
 			}
 			projectId = envValue
+		}
+
+		// Set Firestore emulator host if --host flag is provided
+		if host != "" {
+			os.Setenv("FIRESTORE_EMULATOR_HOST", host)
 		}
 
 		ctx := cmd.Context()
@@ -49,9 +54,11 @@ func Execute() {
 }
 
 var projectId string
+var host string
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&projectId, "project", "p", "", "Google Cloud Project")
+	rootCmd.PersistentFlags().StringVar(&host, "host", "", "Firestore host (e.g., localhost:8080 for emulator)")
 	rootCmd.AddCommand(document.NewDocumentCmd())
 	rootCmd.AddCommand(collection.NewCollectionCmd())
 }

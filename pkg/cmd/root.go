@@ -19,8 +19,7 @@ var rootCmd = &cobra.Command{
 	Aliases: []string{"fs"},
 	Short:   "perform actions on firestore",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		flagValue, _ := cmd.PersistentFlags().GetString("project")
-		if flagValue == "" {
+		if projectId == "" {
 			envValue := os.Getenv("PROJECT_ID")
 			if envValue == "" {
 				return fmt.Errorf("missing PROJECT_ID: --project (-p) [PROJECT_ID]")

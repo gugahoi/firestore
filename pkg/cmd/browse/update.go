@@ -46,6 +46,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.columnIndex < len(m.columns) {
 			m.columns[msg.columnIndex].sections = msg.sections
 			m.columns[msg.columnIndex].docContent = msg.docContent
+			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
 			// Only create viewport if we have valid dimensions
@@ -96,6 +97,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "G":
 		m.jumpToBottom()
+		return m, nil
+
+	// Scrolling within column
+	case "ctrl+d", "pgdown":
+		m.scrollDown()
+		return m, nil
+
+	case "ctrl+u", "pgup":
+		m.scrollUp()
 		return m, nil
 
 	// Horizontal navigation (between columns)

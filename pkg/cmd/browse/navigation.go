@@ -51,12 +51,76 @@ func (m *Model) moveCursor(delta int) {
 		return
 	}
 
+	oldCursor := col.cursor
 	col.cursor += delta
 	if col.cursor < 0 {
 		col.cursor = 0
 	}
 	if col.cursor >= len(items) {
 		col.cursor = len(items) - 1
+	}
+
+	// Auto-scroll to keep cursor visible
+	if col.cursor != oldCursor {
+		m.autoScroll()
+	}
+}
+
+// autoScroll adjusts scroll offset to keep cursor visible
+func (m *Model) autoScroll() {
+	if m.activeColumn >= len(m.columns) {
+		return
+	}
+
+	col := &m.columns[m.activeColumn]
+	// Match height calculation in view.go: m.height - 6 (header/footer/margin) - 2 (borders)
+	viewHeight := m.height - 8
+	if viewHeight < 1 {
+		viewHeight = 10
+	}
+
+	// Calculate cursor position in the rendered content
+	// We need to account for section headers
+	cursorLine := 0
+	itemIndex := 0
+	for _, section := range col.sections {
+		if section.hidden {
+			continue
+		}
+		// Section header takes 1 line
+		cursorLine++
+
+		for range section.items {
+			if itemIndex == col.cursor {
+				// Found cursor position
+				break
+			}
+			cursorLine++ // Each item takes 1 line
+			itemIndex++
+		}
+		if itemIndex == col.cursor {
+			break
+		}
+		cursorLine++ // Empty line after section
+	}
+
+	// Adjust scroll to keep cursor visible
+	// Keep cursor in middle third of screen when possible
+	topMargin := viewHeight / 3
+	bottomMargin := viewHeight - (viewHeight / 3)
+
+	visibleTop := col.scrollOffset
+	visibleBottom := col.scrollOffset + viewHeight
+
+	if cursorLine < visibleTop+topMargin {
+		// Cursor too close to top, scroll up
+		col.scrollOffset = cursorLine - topMargin
+		if col.scrollOffset < 0 {
+			col.scrollOffset = 0
+		}
+	} else if cursorLine >= visibleBottom-(viewHeight-bottomMargin) {
+		// Cursor too close to bottom, scroll down
+		col.scrollOffset = cursorLine - bottomMargin
 	}
 }
 
@@ -66,6 +130,7 @@ func (m *Model) jumpToTop() {
 		return
 	}
 	m.columns[m.activeColumn].cursor = 0
+	m.columns[m.activeColumn].scrollOffset = 0 // Also scroll to top
 }
 
 // jumpToBottom moves cursor to the last item
@@ -78,6 +143,52 @@ func (m *Model) jumpToBottom() {
 	items := getAllItems(*col)
 	if len(items) > 0 {
 		col.cursor = len(items) - 1
+		m.autoScroll() // Scroll to show bottom item
+	}
+}
+
+// scrollDown scrolls the active column down by half a page
+func (m *Model) scrollDown() {
+	if m.activeColumn >= len(m.columns) {
+		return
+	}
+
+	col := &m.columns[m.activeColumn]
+	viewHeight := m.height - 8
+	if viewHeight < 1 {
+		viewHeight = 10
+	}
+
+	pageSize := viewHeight / 2 // Half page scroll
+	if pageSize < 1 {
+		pageSize = 1
+	}
+
+	col.scrollOffset += pageSize
+	// Upper bound will be checked in renderColumn, but we can't check it here
+	// because we don't know the full content length until render time.
+}
+
+// scrollUp scrolls the active column up by half a page
+func (m *Model) scrollUp() {
+	if m.activeColumn >= len(m.columns) {
+		return
+	}
+
+	col := &m.columns[m.activeColumn]
+	viewHeight := m.height - 8
+	if viewHeight < 1 {
+		viewHeight = 10
+	}
+
+	pageSize := viewHeight / 2 // Half page scroll
+	if pageSize < 1 {
+		pageSize = 1
+	}
+
+	col.scrollOffset -= pageSize
+	if col.scrollOffset < 0 {
+		col.scrollOffset = 0
 	}
 }
 

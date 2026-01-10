@@ -242,10 +242,10 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	// - header (1)
 	// - path (1)
 	// - footer (1)
-	// - some margin (4)
-	// Total overhead = 7
+	// - some margin (1)
+	// Total overhead = 4
 	// We also need to account for the border (top + bottom = 2)
-	height := m.height - 7 - 2
+	height := m.height - 4 - 2
 	if height < 1 {
 		height = 10 // Minimum height
 	}
@@ -459,12 +459,11 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 		}
 	}()
 
-	// Don't set explicit height on the style - let it use the content height
-	// Setting Height() would add padding to reach that height, making content longer
+	// Always set explicit height on the style to ensure full height columns
 	if isActive {
-		result = activeColumnStyle.Width(width).Render(columnContent)
+		result = activeColumnStyle.Width(width).Height(height).Render(columnContent)
 	} else {
-		result = inactiveColumnStyle.Width(width).Render(columnContent)
+		result = inactiveColumnStyle.Width(width).Height(height).Render(columnContent)
 	}
 
 	resultLineCount := strings.Count(result, "\n") + 1

@@ -23,28 +23,38 @@ type Model struct {
 
 // Column represents a single column in the Miller columns layout
 type Column struct {
-	path         string             // Firestore path this column represents
-	isDoc        bool               // true if this is a document, false if collection
-	sections     []Section          // Documents and/or Subcollections sections
-	docContent   string             // JSON content (only for document columns)
-	viewport     viewport.Model     // Scrollable viewport for document content
-	cursor       int                // Selected index across all items
-	scrollOffset int                // Scroll position for lists
+	path         string                 // Firestore path this column represents
+	isDoc        bool                   // true if this is a document, false if collection
+	sections     []Section              // Documents and/or Subcollections sections
+	docContent   string                 // Raw JSON content (only for document columns)
+	docData      map[string]interface{} // Parsed data map
+	viewport     viewport.Model         // Scrollable viewport for document content
+	cursor       int                    // Selected index across all items
+	scrollOffset int                    // Scroll position for lists
 }
 
 // Section represents a section within a column (Documents or Subcollections)
 type Section struct {
-	title  string     // "Documents" or "Subcollections"
+	title  string // "Documents", "Subcollections", or "Data"
 	items  []ListItem
-	hidden bool       // true if no items (section not displayed)
+	hidden bool // true if no items (section not displayed)
 }
 
-// ListItem represents a single item in a list (document or collection)
+// ListItem represents a single item in a list (document, collection, or data node)
 type ListItem struct {
-	id       string
-	path     string
+	id       string            // Display ID or Key
+	path     string            // Firestore path (for cols/docs) or JSON path (for data)
 	isDoc    bool              // true for documents, false for collections
+	isData   bool              // true if this is a data node
 	metadata map[string]string // CreateTime, etc.
+
+	// Tree view fields
+	key      string
+	valueStr string     // string representation of value
+	dataType string     // "string", "number", "bool", "object", "array", "null"
+	depth    int        // indentation level
+	expanded bool       // is expanded?
+	children []ListItem // children nodes (if object/array)
 }
 
 // Message types for async operations
@@ -62,8 +72,20 @@ type errorMsg struct {
 func (m Model) Init() tea.Cmd {
 	logDebug("Init called - columns: %d, first column path: '%s', isDoc: %v",
 		len(m.columns),
-		func() string { if len(m.columns) > 0 { return m.columns[0].path } else { return "" } }(),
-		func() bool { if len(m.columns) > 0 { return m.columns[0].isDoc } else { return false } }())
+		func() string {
+			if len(m.columns) > 0 {
+				return m.columns[0].path
+			} else {
+				return ""
+			}
+		}(),
+		func() bool {
+			if len(m.columns) > 0 {
+				return m.columns[0].isDoc
+			} else {
+				return false
+			}
+		}())
 
 	// Fetch initial data for first column
 	if len(m.columns) > 0 {

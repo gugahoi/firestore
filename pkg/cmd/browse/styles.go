@@ -70,4 +70,25 @@ var (
 	loadingStyle = lipgloss.NewStyle().
 			Foreground(colorYellow).
 			Italic(true)
+
+	// Tree View Data Type Styles
+	treeKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("205")) // Hot Pink for keys
+
+	treeStringStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("113")) // Green for strings
+
+	treeNumberStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("215")) // Orange/Gold for numbers
+
+	treeBoolStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("33")) // Blue for booleans
+
+	treeNullStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")). // Dark gray for null
+			Italic(true)
+
+	treeTypeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")). // Light gray for object/array type indicators
+			Italic(true)
 )

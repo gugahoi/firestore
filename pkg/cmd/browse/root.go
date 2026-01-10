@@ -3,7 +3,6 @@ package browse
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"cloud.google.com/go/firestore"
@@ -28,9 +27,10 @@ Examples:
 			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
 			ctx := context.Background()
 
-			// Get project ID from environment or flag
-			projectID := os.Getenv("PROJECT_ID")
-			if projectID == "" {
+			// Get project ID from context
+			projectID, ok := cmd.Context().Value(keys.ProjectIDKey).(string)
+			if !ok {
+				// Fallback to "unknown" if not found (shouldn't happen with root's persistentPreRun)
 				projectID = "unknown"
 			}
 

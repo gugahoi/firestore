@@ -40,7 +40,9 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("failed to create firestore client: %w", err)
 		}
 
-		cmd.SetContext(context.WithValue(ctx, keys.ClientKey, client))
+		ctx = context.WithValue(ctx, keys.ClientKey, client)
+		ctx = context.WithValue(ctx, keys.ProjectIDKey, projectId)
+		cmd.SetContext(ctx)
 		return nil
 	},
 }

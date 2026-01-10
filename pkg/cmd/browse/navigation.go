@@ -4,6 +4,42 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 )
 
+// Helper to get total items in a tree node (including children if expanded)
+func getTreeNodeCount(node ListItem) int {
+	count := 1 // Count self
+	if node.expanded {
+		for _, child := range node.children {
+			count += getTreeNodeCount(child)
+		}
+	}
+	return count
+}
+
+// Helper to find item at absolute index in a tree
+func getTreeItemAt(nodes []ListItem, targetIndex int) *ListItem {
+	currentIndex := 0
+
+	var find func(nodes []ListItem) *ListItem
+	find = func(nodes []ListItem) *ListItem {
+		for i := range nodes {
+			if currentIndex == targetIndex {
+				return &nodes[i]
+			}
+			currentIndex++
+
+			if nodes[i].expanded {
+				found := find(nodes[i].children)
+				if found != nil {
+					return found
+				}
+			}
+		}
+		return nil
+	}
+
+	return find(nodes)
+}
+
 // getSelectedItem returns the currently selected item from the active column
 func (m *Model) getSelectedItem() *ListItem {
 	if m.activeColumn >= len(m.columns) {
@@ -17,11 +53,30 @@ func (m *Model) getSelectedItem() *ListItem {
 		if section.hidden {
 			continue
 		}
-		for _, item := range section.items {
-			if itemIndex == col.cursor {
-				return &item
+
+		if section.title == "Data" {
+			// Tree view logic
+			// Calculate how many visible items are in this tree section
+			sectionCount := 0
+			for _, item := range section.items {
+				sectionCount += getTreeNodeCount(item)
 			}
-			itemIndex++
+
+			// Check if cursor is within this section
+			if col.cursor < itemIndex+sectionCount {
+				return getTreeItemAt(section.items, col.cursor-itemIndex)
+			}
+
+			// Not in this section, advance index
+			itemIndex += sectionCount
+		} else {
+			// Linear list logic
+			for _, item := range section.items {
+				if itemIndex == col.cursor {
+					return &item
+				}
+				itemIndex++
+			}
 		}
 	}
 
@@ -29,14 +84,23 @@ func (m *Model) getSelectedItem() *ListItem {
 }
 
 // getAllItems returns all visible items from a column (flattened from sections)
-func getAllItems(col Column) []ListItem {
-	var items []ListItem
+// Updated to handle tree expansion
+func getAllItemsCount(col Column) int {
+	count := 0
 	for _, section := range col.sections {
-		if !section.hidden {
-			items = append(items, section.items...)
+		if section.hidden {
+			continue
+		}
+
+		if section.title == "Data" {
+			for _, item := range section.items {
+				count += getTreeNodeCount(item)
+			}
+		} else {
+			count += len(section.items)
 		}
 	}
-	return items
+	return count
 }
 
 // moveCursor moves the cursor in the active column
@@ -46,8 +110,8 @@ func (m *Model) moveCursor(delta int) {
 	}
 
 	col := &m.columns[m.activeColumn]
-	items := getAllItems(*col)
-	if len(items) == 0 {
+	totalItems := getAllItemsCount(*col)
+	if totalItems == 0 {
 		return
 	}
 
@@ -56,8 +120,8 @@ func (m *Model) moveCursor(delta int) {
 	if col.cursor < 0 {
 		col.cursor = 0
 	}
-	if col.cursor >= len(items) {
-		col.cursor = len(items) - 1
+	if col.cursor >= totalItems {
+		col.cursor = totalItems - 1
 	}
 
 	// Auto-scroll to keep cursor visible
@@ -83,6 +147,8 @@ func (m *Model) autoScroll() {
 	// We need to account for section headers
 	cursorLine := 0
 	itemIndex := 0
+	foundCursor := false
+
 	for _, section := range col.sections {
 		if section.hidden {
 			continue
@@ -90,16 +156,46 @@ func (m *Model) autoScroll() {
 		// Section header takes 1 line
 		cursorLine++
 
-		for range section.items {
-			if itemIndex == col.cursor {
-				// Found cursor position
+		if section.title == "Data" {
+			// Tree view logic - we need to traverse the tree to find where the cursor lands
+			var traverse func(nodes []ListItem)
+			traverse = func(nodes []ListItem) {
+				for _, node := range nodes {
+					if foundCursor {
+						return
+					}
+
+					if itemIndex == col.cursor {
+						foundCursor = true
+						return
+					}
+
+					cursorLine++
+					itemIndex++
+
+					if node.expanded {
+						traverse(node.children)
+					}
+				}
+			}
+			traverse(section.items)
+			if foundCursor {
 				break
 			}
-			cursorLine++ // Each item takes 1 line
-			itemIndex++
-		}
-		if itemIndex == col.cursor {
-			break
+		} else {
+			// Linear list logic
+			for range section.items {
+				if itemIndex == col.cursor {
+					// Found cursor position
+					foundCursor = true
+					break
+				}
+				cursorLine++ // Each item takes 1 line
+				itemIndex++
+			}
+			if foundCursor {
+				break
+			}
 		}
 		cursorLine++ // Empty line after section
 	}
@@ -140,9 +236,9 @@ func (m *Model) jumpToBottom() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	items := getAllItems(*col)
-	if len(items) > 0 {
-		col.cursor = len(items) - 1
+	count := getAllItemsCount(*col)
+	if count > 0 {
+		col.cursor = count - 1
 		m.autoScroll() // Scroll to show bottom item
 	}
 }

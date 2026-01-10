@@ -109,11 +109,30 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	// Horizontal navigation (between columns)
+	case "space":
+		// Toggle expansion for data nodes
+		item := m.getSelectedItem()
+		if item != nil && item.isData {
+			item.expanded = !item.expanded
+			return m, nil
+		}
+		return m, nil
+
 	case "l", "right", "enter":
 		// Get selected item and navigate forward
 		item := m.getSelectedItem()
 		logDebug("Forward navigation - selected item: %v", item)
 		if item != nil {
+			if item.isData {
+				// Handle tree expansion/toggle
+				if msg.String() == "enter" {
+					item.expanded = !item.expanded
+				} else if !item.expanded {
+					item.expanded = true
+				}
+				return m, nil
+			}
+
 			logDebug("Adding column: path='%s', isDoc=%v", item.path, item.isDoc)
 			m.addColumn(item.path, item.isDoc)
 			m.loading = true
@@ -123,6 +142,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "h", "left", "backspace":
+		// Check if we can collapse a data node
+		item := m.getSelectedItem()
+		if item != nil && item.isData && item.expanded {
+			item.expanded = false
+			return m, nil
+		}
+
 		// Navigate back
 		m.removeLastColumn()
 		return m, nil

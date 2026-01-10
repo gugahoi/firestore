@@ -53,7 +53,9 @@ func (m Model) View() string {
 	pathView := pathStyle.Render("Path: " + fullPath)
 
 	// Footer
-	footer := footerStyle.Render("j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  r: Refresh  q: Quit")
+	footer := footerStyle.Render(
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  r: Refresh  q: Quit",
+	)
 
 	// Error message
 	errorMsg := ""
@@ -119,6 +121,113 @@ func (m Model) renderColumns() string {
 	return result
 }
 
+// Helper to render tree nodes recursively
+func (m Model) renderTreeNodes(
+	nodes []ListItem,
+	level int,
+	cursor int,
+	itemIndex *int,
+	content *strings.Builder,
+	wrapper lipgloss.Style,
+	innerWidth int,
+) int {
+	linesUsed := 0
+
+	for _, node := range nodes {
+		prefix := strings.Repeat("  ", level)
+
+		cursorMarker := "  "
+		if *itemIndex == cursor {
+			cursorMarker = "> "
+		}
+
+		// Icon for expandable items
+		icon := " "
+		if node.dataType == "object" || node.dataType == "array" {
+			if node.expanded {
+				icon = "▼"
+			} else {
+				icon = "▶"
+			}
+		}
+
+		// Style the key
+		keyStr := treeKeyStyle.Render(node.key)
+
+		// Style the value
+		valStr := ""
+		switch node.dataType {
+		case "string":
+			valStr = treeStringStyle.Render(fmt.Sprintf("%q", node.valueStr))
+		case "number":
+			valStr = treeNumberStyle.Render(node.valueStr)
+		case "bool":
+			valStr = treeBoolStyle.Render(node.valueStr)
+		case "null":
+			valStr = treeNullStyle.Render("null")
+		case "object", "array":
+			// Show type hint (e.g. "Object {2}" or "Array [5]")
+			// If we had count, we could show it, for now just show type
+			if node.dataType == "array" {
+				valStr = treeTypeStyle.Render(fmt.Sprintf("[%d]", len(node.children)))
+			} else {
+				valStr = treeTypeStyle.Render("{}")
+			}
+		default:
+			valStr = node.valueStr
+		}
+
+		// Build line: marker + indent + icon + key + ": " + value
+		// Note: we removed the dot point for leaf nodes as requested
+		lineStr := fmt.Sprintf("%s%s%s %s: %s", cursorMarker, prefix, icon, keyStr, valStr)
+
+		// Style the line selection (inverse background or similar might be better,
+		// but let's stick to simple bold/highlight for now, preserving color)
+		if *itemIndex == cursor {
+			// When selected, we might want to keep the colors but add an indicator
+			// or change background. For now, let's just make the cursor indicator bold/visible
+			// and keep the syntax highlighting.
+			// Re-building line with selected indicator style only on the marker/prefix if possible
+			// But since we are rendering the whole string, let's just use a selection style
+			// that doesn't strip color if possible, or just bold it.
+
+			// Simple approach: Use a different background for the whole line?
+			// Or just rely on the ">" marker which is already there.
+			// Let's wrap the whole line in a style that might add a background or bold
+			// without overriding foreground colors if lipgloss supports it.
+			// Lipgloss Foreground() overrides existing colors.
+			// So let's just use the marker ">" which is already distinct.
+
+			// However, the original code did: lineStr = selectedItemStyle.Render(lineStr)
+			// which forces white color. Let's just bold it and maybe add a background.
+			lineStr = lipgloss.NewStyle().Bold(true).Render(lineStr)
+		}
+
+		// Wrap and write
+		wrappedLine := wrapper.Render(lineStr)
+		content.WriteString(wrappedLine)
+		content.WriteString("\n")
+		linesUsed += strings.Count(wrappedLine, "\n") + 1
+
+		*itemIndex++
+
+		// Render children if expanded
+		if node.expanded && len(node.children) > 0 {
+			linesUsed += m.renderTreeNodes(
+				node.children,
+				level+1,
+				cursor,
+				itemIndex,
+				content,
+				wrapper,
+				innerWidth,
+			)
+		}
+	}
+
+	return linesUsed
+}
+
 // renderColumn renders a single column
 func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	defer func() {
@@ -143,12 +252,16 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 
 	// Calculate inner width for wrapping
 	// Width - Border(2) - Padding(2) = Width - 4
-	innerWidth := width - 4
-	if innerWidth < 1 {
-		innerWidth = 1
-	}
+	innerWidth := max(width-4, 1)
 
-	logDebug("renderColumn: width=%d, innerWidth=%d, height=%d, isActive=%v, sections=%d", width, innerWidth, height, isActive, len(col.sections))
+	logDebug(
+		"renderColumn: width=%d, innerWidth=%d, height=%d, isActive=%v, sections=%d",
+		width,
+		innerWidth,
+		height,
+		isActive,
+		len(col.sections),
+	)
 
 	var content strings.Builder
 	itemIndex := 0
@@ -175,52 +288,73 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 		linesUsed++
 
 		// Section items
-		for _, item := range section.items {
-			prefix := "  "
-			if itemIndex == col.cursor {
-				prefix = "> "
-			}
+		if section.title == "Data" {
+			// Special rendering for Data section (tree view)
+			// Pass current itemIndex pointer to track global index in column
+			idx := itemIndex
+			used := m.renderTreeNodes(
+				section.items,
+				0,
+				col.cursor,
+				&idx,
+				&content,
+				wrapper,
+				innerWidth,
+			)
+			linesUsed += used
+			itemIndex = idx
+		} else {
+			// Standard list rendering
+			for _, item := range section.items {
+				prefix := "  "
+				if itemIndex == col.cursor {
+					prefix = "> "
+				}
 
-			indicator := ""
-			if item.isDoc {
-				indicator = docIndicatorStyle.Render("[D]")
-			} else {
-				indicator = colIndicatorStyle.Render("[C]")
-			}
+				// Calculate space available for ID
+				// prefix(2) + space(1) = 3 chars roughly (ignoring ansi)
+				extraChars := 3
+				availWidth := max(innerWidth-extraChars, 5)
 
-			// Calculate space available for ID
-			// prefix(2) + space(1) + indicator(3) = 6 chars roughly (ignoring ansi)
-			// But indicator has ANSI, so we assume visual length 3 for [D]/[C]
-			extraChars := 6
-			availWidth := innerWidth - extraChars
-			if availWidth < 5 {
-				availWidth = 5
-			}
+				displayID := item.id
+				if len(displayID) > availWidth {
+					displayID = displayID[:availWidth-3] + "..."
+				}
 
-			displayID := item.id
-			if len(displayID) > availWidth {
-				displayID = displayID[:availWidth-3] + "..."
-			}
+				line := fmt.Sprintf("%s%s", prefix, displayID)
+				if itemIndex == col.cursor {
+					line = selectedItemStyle.Render(line)
+				}
 
-			line := fmt.Sprintf("%s%s %s", prefix, displayID, indicator)
-			if itemIndex == col.cursor {
-				line = selectedItemStyle.Render(line)
+				content.WriteString(line)
+				content.WriteString("\n")
+				itemIndex++
+				linesUsed++
 			}
-
-			content.WriteString(line)
-			content.WriteString("\n")
-			itemIndex++
-			linesUsed++
 		}
 		content.WriteString("\n")
 		linesUsed++
 	}
 
-	// If this is a document column, render document content
-	if col.isDoc && col.docContent != "" {
+	// If this is a document column, render document content (RAW JSON fallback/debug)
+	// We only show this if we DON'T have a Data section (which we should always have now)
+	hasDataSection := false
+	for _, s := range col.sections {
+		if s.title == "Data" {
+			hasDataSection = true
+			break
+		}
+	}
+
+	if col.isDoc && col.docContent != "" && !hasDataSection {
 		// Calculate remaining space for document content
 		remainingLines := height - linesUsed - 2 // Leave 2 lines margin
-		logDebug("DOCUMENT CONTENT: height=%d, linesUsed=%d, remainingLines=%d", height, linesUsed, remainingLines)
+		logDebug(
+			"DOCUMENT CONTENT: height=%d, linesUsed=%d, remainingLines=%d",
+			height,
+			linesUsed,
+			remainingLines,
+		)
 
 		// Always render document content if we are in a doc column
 		if remainingLines > 2 {
@@ -234,7 +368,11 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 			// Wrap the document content to the inner width
 			wrappedDoc := wrapper.Render(col.docContent)
 			docLines := strings.Split(wrappedDoc, "\n")
-			logDebug("DOCUMENT CONTENT: original docLines=%d, remainingLines=%d", len(docLines), remainingLines)
+			logDebug(
+				"DOCUMENT CONTENT: original docLines=%d, remainingLines=%d",
+				len(docLines),
+				remainingLines,
+			)
 
 			// We don't truncate anymore because scrolling will handle visibility
 			content.WriteString(strings.Join(docLines, "\n"))
@@ -251,33 +389,26 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 		columnContent = "No items"
 	}
 
-	logDebug("Before scrolling: linesUsed=%d, contentLines=%d, height=%d", linesUsed, strings.Count(columnContent, "\n")+1, height)
+	logDebug(
+		"Before scrolling: linesUsed=%d, contentLines=%d, height=%d",
+		linesUsed,
+		strings.Count(columnContent, "\n")+1,
+		height,
+	)
 
 	// Apply scrolling - show only the visible portion
 	lines := strings.Split(columnContent, "\n")
 	totalLines := len(lines)
 
 	// Calculate bounds
-	maxScroll := totalLines - height
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
+	maxScroll := max(totalLines-height, 0)
 
 	// Use scroll offset (bounds are enforced in scroll functions)
-	scrollOffset := col.scrollOffset
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-	if scrollOffset > maxScroll {
-		scrollOffset = maxScroll
-	}
+	scrollOffset := min(max(col.scrollOffset, 0), maxScroll)
 
 	// Extract visible lines based on scroll position
 	startLine := scrollOffset
-	endLine := scrollOffset + height
-	if endLine > totalLines {
-		endLine = totalLines
-	}
+	endLine := min(scrollOffset+height, totalLines)
 
 	visibleLines := lines[startLine:endLine]
 
@@ -304,13 +435,25 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 
 	// Apply border style
 	finalLineCount := strings.Count(columnContent, "\n") + 1
-	logDebug("About to render with lipgloss: width=%d, height=%d, visibleLines=%d, finalLineCount=%d", width, height, len(visibleLines), finalLineCount)
+	logDebug(
+		"About to render with lipgloss: width=%d, height=%d, visibleLines=%d, finalLineCount=%d",
+		width,
+		height,
+		len(visibleLines),
+		finalLineCount,
+	)
 
 	var result string
 	defer func() {
 		if r := recover(); r != nil {
 			logDebug("PANIC in lipgloss render: %v", r)
-			logDebug("width=%d, height=%d, isActive=%v, contentLen=%d", width, height, isActive, len(columnContent))
+			logDebug(
+				"width=%d, height=%d, isActive=%v, contentLen=%d",
+				width,
+				height,
+				isActive,
+				len(columnContent),
+			)
 			// Return a simple string instead of panicking
 			result = fmt.Sprintf("Error rendering column (w=%d,h=%d)", width, height)
 		}
@@ -325,7 +468,12 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	}
 
 	resultLineCount := strings.Count(result, "\n") + 1
-	logDebug("Lipgloss render successful - input lines: %d, output lines: %d, expected max: %d", finalLineCount, resultLineCount, height)
+	logDebug(
+		"Lipgloss render successful - input lines: %d, output lines: %d, expected max: %d",
+		finalLineCount,
+		resultLineCount,
+		height,
+	)
 
 	if resultLineCount > height+4 {
 		logDebug("WARNING: Output exceeds expected height by %d lines!", resultLineCount-(height+4))

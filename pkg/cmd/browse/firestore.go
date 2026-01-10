@@ -4,12 +4,91 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 
 	"cloud.google.com/go/firestore"
 	tea "github.com/charmbracelet/bubbletea"
 	"google.golang.org/api/iterator"
 )
+
+// Helper to build tree nodes from map
+func buildTreeNodes(data map[string]interface{}) []ListItem {
+	var nodes []ListItem
+
+	// Sort keys for consistent order
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		v := data[k]
+		nodes = append(nodes, createNode(k, v, 0))
+	}
+
+	return nodes
+}
+
+func createNode(key string, value interface{}, depth int) ListItem {
+	item := ListItem{
+		id:       key,
+		isData:   true,
+		key:      key,
+		depth:    depth,
+		expanded: false, // Default to collapsed
+	}
+
+	switch v := value.(type) {
+	case map[string]interface{}:
+		item.dataType = "object"
+		item.valueStr = "{...}"
+
+		// Create children
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			item.children = append(item.children, createNode(k, v[k], depth+1))
+		}
+
+	case []interface{}:
+		item.dataType = "array"
+		item.valueStr = fmt.Sprintf("[%d]", len(v))
+
+		for i, val := range v {
+			item.children = append(item.children, createNode(fmt.Sprintf("%d", i), val, depth+1))
+		}
+
+	case string:
+		item.dataType = "string"
+		item.valueStr = v // Don't quote it here, handle quotes in view.go
+
+	case float64:
+		item.dataType = "number"
+		item.valueStr = fmt.Sprintf("%v", v)
+
+	case bool:
+		item.dataType = "bool"
+		item.valueStr = fmt.Sprintf("%v", v)
+
+	case nil:
+		item.dataType = "null"
+		item.valueStr = "null"
+
+	default:
+		// Handle other types (e.g. timestamps)
+		item.dataType = "other"
+		item.valueStr = fmt.Sprintf("%v", v)
+	}
+
+	return item
+}
 
 // fetchColumnData fetches data for a specific column based on path and type
 func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int) tea.Cmd {
@@ -113,15 +192,26 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 				return errorMsg{err: err}
 			}
 
-			// Format as JSON (following pattern from document/get.go)
+			// Format as JSON
+			data := snap.Data()
 			var buf bytes.Buffer
 			encoder := json.NewEncoder(&buf)
 			encoder.SetEscapeHTML(false)
 			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(snap.Data()); err != nil {
+			if err := encoder.Encode(data); err != nil {
 				return errorMsg{err: err}
 			}
 			docContent = buf.String()
+
+			// Build tree nodes for structured view
+			rootNodes := buildTreeNodes(data)
+			if len(rootNodes) > 0 {
+				sections = append(sections, Section{
+					title:  "Data",
+					items:  rootNodes,
+					hidden: false,
+				})
+			}
 		}
 
 		result := fetchedColumnMsg{

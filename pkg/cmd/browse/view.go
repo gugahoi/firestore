@@ -25,6 +25,33 @@ func (m Model) View() string {
 	// Header
 	header := headerStyle.Render(fmt.Sprintf("Firestore Browser - Project: %s", m.projectID))
 
+	// Construct path string from columns
+	var pathSegments []string
+	for i, col := range m.columns {
+		// Only show path segments for the active path (up to active column)
+		if i > m.activeColumn {
+			break
+		}
+
+		// For the first column (root), we ignore empty path
+		if i == 0 && col.path == "" {
+			continue
+		}
+
+		// For other columns, extract the last segment of the path
+		parts := strings.Split(col.path, "/")
+		if len(parts) > 0 {
+			segment := parts[len(parts)-1]
+			if segment != "" {
+				pathSegments = append(pathSegments, segment)
+			}
+		}
+	}
+
+	// Join segments with "/"
+	fullPath := "/" + strings.Join(pathSegments, "/")
+	pathView := pathStyle.Render("Path: " + fullPath)
+
 	// Footer
 	footer := footerStyle.Render("j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  r: Refresh  q: Quit")
 
@@ -50,6 +77,7 @@ func (m Model) View() string {
 		lipgloss.Left,
 		header,
 		columnsView,
+		pathView,
 		errorMsg,
 		loadingMsg,
 		footer,
@@ -101,9 +129,14 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	}()
 
 	// Calculate available height
-	// m.height includes header (1), footer (1), and some margin (4) = 6 total
+	// m.height includes:
+	// - header (1)
+	// - path (1)
+	// - footer (1)
+	// - some margin (4)
+	// Total overhead = 7
 	// We also need to account for the border (top + bottom = 2)
-	height := m.height - 6 - 2 // Account for header, footer, border
+	height := m.height - 7 - 2
 	if height < 1 {
 		height = 10 // Minimum height
 	}

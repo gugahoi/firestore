@@ -36,6 +36,27 @@ firestore -p demo-flux collection query --sort firstName --direction desc -f fir
 - [x] upload
 - [x] query
 
+### Interactive Browser (TUI)
+
+The `browse` command launches an interactive terminal user interface for navigating your Firestore database.
+
+```bash
+# Start browsing from the root
+firestore browse
+
+# Start browsing a specific collection or document
+firestore browse users
+firestore browse users/abc123/preferences
+```
+
+**Navigation Controls:**
+- `j` / `k` (or `Up`/`Down`): Move selection up and down
+- `l` / `h` (or `Enter`/`Left`): Navigate forward (into a collection/doc) or backward
+- `Ctrl+d` / `Ctrl+u` (or `PgDn`/`PgUp`): Scroll document content or long lists
+- `g` / `G`: Jump to the top or bottom of the list
+- `r`: Refresh the current column
+- `q`: Quit the browser
+
 ## Firestore Emulator
 
 To use this tool with the Firestore Emulator, you can either set the `FIRESTORE_EMULATOR_HOST` environment variable or use the `--host` flag:

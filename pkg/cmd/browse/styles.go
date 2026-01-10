@@ -91,4 +91,10 @@ var (
 	treeTypeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")). // Light gray for object/array type indicators
 			Italic(true)
+
+	// Input dialog style
+	inputDialogStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorCyan).
+				Padding(1, 2)
 )

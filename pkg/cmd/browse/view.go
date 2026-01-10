@@ -54,7 +54,7 @@ func (m Model) View() string {
 
 	// Footer
 	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  r: Refresh  q: Quit",
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  Ctrl+g: Go to  r: Refresh  q: Quit",
 	)
 
 	// Error message
@@ -85,6 +85,47 @@ func (m Model) View() string {
 		footer,
 	)
 	logDebug("View: JoinVertical successful, contentLen=%d", len(content))
+
+	// Overlay input dialog if in input mode
+	if m.mode == ModePathInput {
+		// Create dialog content
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			"Enter Firestore Path:",
+			m.textInput.View(),
+		)
+		dialog := inputDialogStyle.Render(dialogContent)
+
+		// Center dialog over existing content
+		// For simplicity in Bubble Tea without advanced layering, we can just replace the content
+		// or use lipgloss.Place to overlay if we had a full screen canvas,
+		// but standard string joining doesn't do z-index.
+		// However, lipgloss.Place can position a string within a given dimension.
+		// We can try to overlay it on top of the 'content' string if we treat 'content' as the background?
+		// But lipgloss.Place works on a whitespace background.
+		// A simpler way for a TUI modal:
+		// Just render the dialog in the middle of the screen size, replacing the middle part?
+		// Or render it OVER the content using lipgloss.Place.
+
+		// Let's use lipgloss.Place to center the dialog in the full terminal size
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(colorGray), // Dim background? No, this replaces background
+		)
+		// Wait, this REPLACES the entire view with the placed dialog on a blank background.
+		// To show the underlying content dimmed, we'd need to manually composite.
+		// For now, replacing the view with the dialog is acceptable for a modal,
+		// but ideally we want to see the background.
+		// Given the constraints, let's just return the dialog centered on a blank screen for now to ensure it works.
+		// Or better: render the main view, then if we could overlay...
+		// But string overlay is hard.
+		// Let's just return the dialog centered. It's a "modal" mode.
+	}
 
 	return content
 }

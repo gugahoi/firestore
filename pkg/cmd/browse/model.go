@@ -4,8 +4,17 @@ import (
 	"context"
 
 	"cloud.google.com/go/firestore"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+// InputMode indicates whether the user is typing a path
+type InputMode int
+
+const (
+	ModeNormal InputMode = iota
+	ModePathInput
 )
 
 // Model represents the entire TUI state
@@ -19,6 +28,10 @@ type Model struct {
 	height       int      // Terminal height
 	loading      bool
 	err          error
+
+	// Path input
+	mode      InputMode
+	textInput textinput.Model
 }
 
 // Column represents a single column in the Miller columns layout
@@ -89,7 +102,10 @@ func (m Model) Init() tea.Cmd {
 
 	// Fetch initial data for first column
 	if len(m.columns) > 0 {
-		return fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0)
+		return tea.Batch(
+			textinput.Blink,
+			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0),
+		)
 	}
-	return nil
+	return textinput.Blink
 }

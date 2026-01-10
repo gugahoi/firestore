@@ -53,6 +53,7 @@ firestore browse users/abc123/preferences
 - `j` / `k` (or `Up`/`Down`): Move selection up and down
 - `l` / `h` (or `Enter`/`Left`): Navigate forward (into a collection/doc) or backward
 - `Ctrl+d` / `Ctrl+u` (or `PgDn`/`PgUp`): Scroll document content or long lists
+- `Ctrl+g`: Open path input to jump to a specific path
 - `g` / `G`: Jump to the top or bottom of the list
 - `r`: Refresh the current column
 - `q`: Quit the browser

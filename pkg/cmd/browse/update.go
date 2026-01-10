@@ -1,18 +1,70 @@
 package browse
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Update handles all messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		logDebug("KeyMsg received: %s", msg.String())
+
+		// Handle input mode
+		if m.mode == ModePathInput {
+			switch msg.String() {
+			case "enter":
+				// Browse to new path
+				path := strings.Trim(m.textInput.Value(), "/")
+
+				// Determine if it is a doc or collection
+				// A simple heuristic: even segments = doc, odd = collection
+				// Root (empty string) is handled as collection list
+				isDoc := false
+				if path != "" {
+					segments := strings.Split(path, "/")
+					isDoc = len(segments)%2 == 0
+				}
+
+				// Reset columns
+				m.columns = []Column{{
+					path:         path,
+					isDoc:        isDoc,
+					scrollOffset: 0,
+				}}
+				m.activeColumn = 0
+				m.mode = ModeNormal
+				m.textInput.Blur()
+				m.textInput.Reset()
+				m.loading = true
+				return m, fetchColumnData(m.client, path, isDoc, 0)
+			case "esc":
+				m.mode = ModeNormal
+				m.textInput.Blur()
+				m.textInput.Reset()
+				return m, nil
+			}
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
+		// Handle normal mode global keys
+		if msg.String() == "ctrl+g" {
+			m.mode = ModePathInput
+			m.textInput.Focus()
+			return m, textinput.Blink
+		}
+
 		return m.handleKeyPress(msg)
 
 	case tea.WindowSizeMsg:
+
 		logDebug("WindowSizeMsg received: width=%d, height=%d", msg.Width, msg.Height)
 		m.width = msg.Width
 		m.height = msg.Height

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gugahoi/firestore/pkg/cmd/keys"
 	"github.com/spf13/cobra"
@@ -44,6 +45,12 @@ Examples:
 				isDoc = len(segments)%2 == 0
 			}
 
+			// Initialize text input
+			ti := textinput.New()
+			ti.Placeholder = "Collection/Document/Collection..."
+			ti.CharLimit = 150
+			ti.Width = 50
+
 			// Initialize model
 			m := Model{
 				client:       client,
@@ -55,6 +62,8 @@ Examples:
 				height:       0,
 				loading:      true,
 				err:          nil,
+				textInput:    ti,
+				mode:         ModeNormal,
 			}
 
 			// Run TUI

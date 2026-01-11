@@ -54,7 +54,7 @@ func (m Model) View() string {
 
 	// Footer
 	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  Ctrl+g: Go to  r: Refresh  q: Quit",
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  Ctrl+g: Go to  yy: Copy  Y: Copy ID/Key  ya: Copy Doc  r: Refresh  q: Quit",
 	)
 
 	// Error message
@@ -125,6 +125,66 @@ func (m Model) View() string {
 		// Or better: render the main view, then if we could overlay...
 		// But string overlay is hard.
 		// Let's just return the dialog centered. It's a "modal" mode.
+	}
+
+	// Overlay status notification if present (floating window)
+	if m.statusMsg != "" {
+		// Create notification box with border
+		notificationStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorGreen).
+			Background(lipgloss.Color("235")). // Dark background
+			Foreground(colorGreen).
+			Padding(0, 1).
+			Bold(true)
+
+		notification := notificationStyle.Render(m.statusMsg)
+
+		// Split content into lines
+		lines := strings.Split(content, "\n")
+
+		// Calculate position near bottom but above footer
+		// Footer is typically the last line, so place notification a few lines above
+		notificationLine := len(lines) - 3
+		if notificationLine < 2 {
+			notificationLine = 2 // Minimum position from top
+		}
+
+		// Make sure we don't go beyond the content
+		if notificationLine >= len(lines) {
+			notificationLine = len(lines) - 1
+		}
+
+		// Position notification at bottom right
+		notificationLines := strings.Split(notification, "\n")
+
+		// Overlay each line of the notification at the right edge
+		for i, notifLine := range notificationLines {
+			linePos := notificationLine + i
+			if linePos < len(lines) {
+				notifWidth := lipgloss.Width(notifLine)
+				existingLine := lines[linePos]
+				existingWidth := lipgloss.Width(existingLine)
+
+				// Calculate padding to align to the right
+				leftPad := existingWidth - notifWidth - 2 // -2 for a small margin from right edge
+				if leftPad < 0 {
+					leftPad = 0
+				}
+
+				// Align to right by adding left padding
+				if leftPad+notifWidth <= existingWidth {
+					// Right-align with padding
+					lines[linePos] = strings.Repeat(" ", leftPad) + notifLine
+				} else {
+					// Notification is wider than existing line, just place it
+					lines[linePos] = notifLine
+				}
+			}
+		}
+
+		// Rejoin the content
+		content = strings.Join(lines, "\n")
 	}
 
 	return content

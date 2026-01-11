@@ -2,6 +2,7 @@ package browse
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -122,6 +123,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		m.loading = false
 		return m, nil
+
+	case clearStatusMsg:
+		// Clear status message if it's old enough
+		if time.Since(m.statusMsgTime) >= 3*time.Second {
+			m.statusMsg = ""
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -129,6 +137,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyPress processes keyboard input
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Track key press for double-tap detection
+	currentKey := msg.String()
+	currentTime := time.Now()
+
+	// Check for double 'y' tap (yy - vim yank)
+	if currentKey == "y" {
+		if m.lastKeyPress == "y" && currentTime.Sub(m.lastKeyTime) < 500*time.Millisecond {
+			// Double tap detected! Reset state and perform copy
+			m.lastKeyPress = ""
+			m.lastKeyTime = time.Time{}
+			return m.handleCopy()
+		}
+		// First 'y' press - track it
+		m.lastKeyPress = currentKey
+		m.lastKeyTime = currentTime
+		return m, nil
+	}
+
+	// Check for 'ya' sequence (yank all - copy entire document)
+	if currentKey == "a" {
+		if m.lastKeyPress == "y" && currentTime.Sub(m.lastKeyTime) < 500*time.Millisecond {
+			// 'ya' sequence detected! Reset state and copy document
+			m.lastKeyPress = ""
+			m.lastKeyTime = time.Time{}
+			return m.handleCopyDocument()
+		}
+	}
+
+	// Check for shift+y (Y - copy ID/key)
+	if currentKey == "Y" {
+		m.lastKeyPress = ""
+		return m.handleCopyAlternate()
+	}
+
+	// Any other key resets the double-tap tracking
+	if currentKey != "shift" && currentKey != "ctrl" && currentKey != "alt" {
+		m.lastKeyPress = ""
+	}
+
 	switch msg.String() {
 	// Quit
 	case "q", "esc", "ctrl+c":

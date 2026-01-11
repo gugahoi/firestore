@@ -71,6 +71,12 @@ var (
 			Foreground(colorYellow).
 			Italic(true)
 
+	// Status message style
+	statusStyle = lipgloss.NewStyle().
+			Foreground(colorGreen).
+			Italic(true).
+			Padding(0, 1)
+
 	// Tree View Data Type Styles
 	treeKeyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("205")) // Hot Pink for keys

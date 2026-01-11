@@ -2,6 +2,7 @@ package browse
 
 import (
 	"context"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -32,6 +33,12 @@ type Model struct {
 	// Path input
 	mode      InputMode
 	textInput textinput.Model
+
+	// Clipboard copy state
+	lastKeyPress  string    // Track last key pressed for double-tap
+	lastKeyTime   time.Time // Timestamp of last key press
+	statusMsg     string    // Status message to display
+	statusMsgTime time.Time // When status message was set
 }
 
 // Column represents a single column in the Miller columns layout
@@ -80,6 +87,13 @@ type fetchedColumnMsg struct {
 type errorMsg struct {
 	err error
 }
+
+type statusMsg struct {
+	message string
+}
+
+type clearStatusMsg struct{}
+
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {

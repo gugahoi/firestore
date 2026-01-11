@@ -54,7 +54,7 @@ func (m Model) View() string {
 
 	// Footer
 	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  Ctrl+g: Go to  yy: Copy  Y: Copy ID/Key  r: Refresh  q: Quit",
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  Ctrl+d/u: Scroll  Ctrl+g: Go to  yy: Copy  Y: Copy ID/Key  ya: Copy Doc  r: Refresh  q: Quit",
 	)
 
 	// Error message

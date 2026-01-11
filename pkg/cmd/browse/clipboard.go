@@ -97,6 +97,48 @@ func (m Model) handleCopyAlternate() (tea.Model, tea.Cmd) {
 	return m, clearStatusAfterDelay()
 }
 
+// handleCopyDocument copies the entire document contents as JSON
+func (m Model) handleCopyDocument() (tea.Model, tea.Cmd) {
+	// Verify we're viewing a document
+	if m.activeColumn >= len(m.columns) {
+		m.statusMsg = "No document to copy"
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
+	}
+
+	col := m.columns[m.activeColumn]
+
+	// Check if current column is a document
+	if !col.isDoc {
+		m.statusMsg = "Can only copy document contents when viewing a document"
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
+	}
+
+	// Get document content
+	contentToCopy := col.docContent
+	if contentToCopy == "" {
+		contentToCopy = "{}"
+	}
+
+	// Attempt to write to clipboard
+	err := clipboard.WriteAll(contentToCopy)
+	if err != nil {
+		m.statusMsg = fmt.Sprintf("Copy failed: %v", err)
+		m.statusMsgTime = time.Now()
+		logDebug("Clipboard write error: %v", err)
+		return m, clearStatusAfterDelay()
+	}
+
+	// Success! Show size of copied content
+	size := len(contentToCopy)
+	m.statusMsg = fmt.Sprintf("Copied document (%d bytes)", size)
+	m.statusMsgTime = time.Now()
+	logDebug("Copied document to clipboard: %d bytes", size)
+
+	return m, clearStatusAfterDelay()
+}
+
 // clearStatusAfterDelay returns a command that sends clearStatusMsg after 3 seconds
 func clearStatusAfterDelay() tea.Cmd {
 	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {

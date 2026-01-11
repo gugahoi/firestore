@@ -155,6 +155,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Check for 'ya' sequence (yank all - copy entire document)
+	if currentKey == "a" {
+		if m.lastKeyPress == "y" && currentTime.Sub(m.lastKeyTime) < 500*time.Millisecond {
+			// 'ya' sequence detected! Reset state and copy document
+			m.lastKeyPress = ""
+			m.lastKeyTime = time.Time{}
+			return m.handleCopyDocument()
+		}
+	}
+
 	// Check for shift+y (Y - copy ID/key)
 	if currentKey == "Y" {
 		m.lastKeyPress = ""

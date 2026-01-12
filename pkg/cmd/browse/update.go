@@ -1,6 +1,9 @@
 package browse
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -99,6 +102,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.columnIndex < len(m.columns) {
 			m.columns[msg.columnIndex].sections = msg.sections
 			m.columns[msg.columnIndex].docContent = msg.docContent
+			m.columns[msg.columnIndex].docData = msg.docData
 			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
@@ -130,6 +134,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = ""
 		}
 		return m, nil
+
+	case documentUpdatedMsg:
+		// Update the column data with new content
+		if m.activeColumn < len(m.columns) {
+			col := &m.columns[m.activeColumn]
+			if col.path == msg.path {
+				col.docData = msg.data
+
+				// Re-format JSON for display
+				jsonBytes, _ := json.MarshalIndent(msg.data, "", "  ")
+				col.docContent = string(jsonBytes)
+
+				// Regenerate tree view sections
+				sections := []Section{
+					{
+						title: "Data",
+						items: buildTreeNodes(msg.data),
+					},
+				}
+				col.sections = sections
+			}
+		}
+
+		m.statusMsg = "Document updated successfully"
+		m.statusMsgTime = time.Now()
+		m.loading = false
+
+		return m, clearStatusAfterDelay()
+
+	case launchEditorMsg:
+		// Launch the editor using tea.Exec
+		return m, openEditorCmd(msg.session)
+
+	case editorFinishedMsg:
+		// Editor closed - check for error, validate, and save
+		if msg.err != nil {
+			// Clean up temp file on error
+			os.Remove(msg.session.tempFile)
+			return m, func() tea.Msg {
+				return errorMsg{err: fmt.Errorf("editor error: %w", msg.err)}
+			}
+		}
+		return m, handleEditorFinished(msg.session)
 	}
 
 	return m, nil
@@ -251,6 +298,21 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Navigate back
 		m.removeLastColumn()
 		return m, nil
+
+	case "e":
+		// Edit document
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		if !col.isDoc {
+			m.statusMsg = "Can only edit documents (not collections)"
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		return m, startEditCmd(m.client, col.path, col.docData)
 
 	case "r":
 		// Refresh current column

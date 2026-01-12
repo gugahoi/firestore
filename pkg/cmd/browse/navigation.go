@@ -1,7 +1,11 @@
 package browse
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Helper to get total items in a tree node (including children if expanded)
@@ -143,8 +147,16 @@ func (m *Model) autoScroll() {
 		viewHeight = 10
 	}
 
+	// Calculate column width and inner width (same as in renderColumn)
+	visibleCols := getVisibleColumns(m.columns, m.activeColumn)
+	colWidth := calculateColumnWidth(m.width, len(visibleCols))
+	innerWidth := max(colWidth-4, 1)
+
+	// Create wrapper for measuring wrapped line lengths
+	wrapper := lipgloss.NewStyle().Width(innerWidth)
+
 	// Calculate cursor position in the rendered content
-	// We need to account for section headers
+	// We need to account for section headers AND wrapped lines
 	cursorLine := 0
 	itemIndex := 0
 	foundCursor := false
@@ -158,43 +170,71 @@ func (m *Model) autoScroll() {
 
 		if section.title == "Data" {
 			// Tree view logic - we need to traverse the tree to find where the cursor lands
-			var traverse func(nodes []ListItem)
-			traverse = func(nodes []ListItem) {
+			var traverse func(nodes []ListItem, level int)
+			traverse = func(nodes []ListItem, level int) {
 				for _, node := range nodes {
 					if foundCursor {
 						return
 					}
 
-					// Increment line count for this item BEFORE checking cursor
-					cursorLine++
-
+					// Check if this is the cursor item BEFORE incrementing cursorLine
 					if itemIndex == col.cursor {
 						foundCursor = true
 						return
 					}
 
+					// Build the line string exactly as in renderTreeNodes
+					prefix := strings.Repeat("  ", level)
+					cursorMarker := "  "
+
+					icon := " "
+					if node.dataType == "object" || node.dataType == "array" {
+						if node.expanded {
+							icon = "▼"
+						} else {
+							icon = "▶"
+						}
+					}
+
+					keyStr := node.key
+					valStr := node.valueStr
+					if node.dataType == "string" {
+						valStr = fmt.Sprintf("\"%s\"", valStr)
+					}
+
+					lineStr := fmt.Sprintf("%s%s%s %s: %s", cursorMarker, prefix, icon, keyStr, valStr)
+
+					// Wrap the line to calculate actual line count
+					wrappedLine := wrapper.Render(lineStr)
+					actualLines := strings.Count(wrappedLine, "\n") + 1
+					cursorLine += actualLines
+
 					itemIndex++
 
 					if node.expanded {
-						traverse(node.children)
+						traverse(node.children, level+1)
 					}
 				}
 			}
-			traverse(section.items)
+			traverse(section.items, 0)
 			if foundCursor {
 				break
 			}
 		} else {
 			// Linear list logic
-			for range section.items {
-				// Increment line count for this item BEFORE checking cursor
-				cursorLine++
-
+			for _, item := range section.items {
+				// Check if this is the cursor item BEFORE incrementing cursorLine
 				if itemIndex == col.cursor {
 					// Found cursor position
 					foundCursor = true
 					break
 				}
+
+				prefix := "  "
+				line := fmt.Sprintf("%s%s", prefix, item.id)
+				wrappedLine := wrapper.Render(line)
+				actualLines := strings.Count(wrappedLine, "\n") + 1
+				cursorLine += actualLines
 
 				itemIndex++
 			}

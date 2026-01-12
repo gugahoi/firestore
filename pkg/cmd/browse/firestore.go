@@ -97,6 +97,7 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 		ctx := context.Background()
 		sections := []Section{}
 		docContent := ""
+		var docData map[string]interface{}
 
 		if path == "" {
 			// Root: fetch root collections
@@ -193,18 +194,18 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			}
 
 			// Format as JSON
-			data := snap.Data()
+			docData = snap.Data()
 			var buf bytes.Buffer
 			encoder := json.NewEncoder(&buf)
 			encoder.SetEscapeHTML(false)
 			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(data); err != nil {
+			if err := encoder.Encode(docData); err != nil {
 				return errorMsg{err: err}
 			}
 			docContent = buf.String()
 
 			// Build tree nodes for structured view
-			rootNodes := buildTreeNodes(data)
+			rootNodes := buildTreeNodes(docData)
 			if len(rootNodes) > 0 {
 				sections = append(sections, Section{
 					title:  "Data",
@@ -218,9 +219,10 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			columnIndex: columnIndex,
 			sections:    sections,
 			docContent:  docContent,
+			docData:     docData,
 		}
-		logDebug("fetchColumnData completed: columnIndex=%d, sections=%d, docContentLen=%d",
-			columnIndex, len(sections), len(docContent))
+		logDebug("fetchColumnData completed: columnIndex=%d, sections=%d, docContentLen=%d, docData keys=%d",
+			columnIndex, len(sections), len(docContent), len(docData))
 		return result
 	}
 }

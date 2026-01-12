@@ -82,6 +82,7 @@ type fetchedColumnMsg struct {
 	columnIndex int
 	sections    []Section
 	docContent  string
+	docData     map[string]interface{}
 }
 
 type errorMsg struct {
@@ -94,6 +95,10 @@ type statusMsg struct {
 
 type clearStatusMsg struct{}
 
+type documentUpdatedMsg struct {
+	path string
+	data map[string]interface{}
+}
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {

@@ -165,12 +165,14 @@ func (m *Model) autoScroll() {
 						return
 					}
 
+					// Increment line count for this item BEFORE checking cursor
+					cursorLine++
+
 					if itemIndex == col.cursor {
 						foundCursor = true
 						return
 					}
 
-					cursorLine++
 					itemIndex++
 
 					if node.expanded {
@@ -185,12 +187,15 @@ func (m *Model) autoScroll() {
 		} else {
 			// Linear list logic
 			for range section.items {
+				// Increment line count for this item BEFORE checking cursor
+				cursorLine++
+
 				if itemIndex == col.cursor {
 					// Found cursor position
 					foundCursor = true
 					break
 				}
-				cursorLine++ // Each item takes 1 line
+
 				itemIndex++
 			}
 			if foundCursor {

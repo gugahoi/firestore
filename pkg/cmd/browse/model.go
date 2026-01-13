@@ -48,6 +48,7 @@ type Column struct {
 	sections     []Section              // Documents and/or Subcollections sections
 	docContent   string                 // Raw JSON content (only for document columns)
 	docData      map[string]interface{} // Parsed data map
+	docMetadata  map[string]string      // Document metadata (CreateTime, UpdateTime, etc.)
 	viewport     viewport.Model         // Scrollable viewport for document content
 	cursor       int                    // Selected index across all items
 	scrollOffset int                    // Scroll position for lists
@@ -83,6 +84,7 @@ type fetchedColumnMsg struct {
 	sections    []Section
 	docContent  string
 	docData     map[string]interface{}
+	docMetadata map[string]string
 }
 
 type errorMsg struct {

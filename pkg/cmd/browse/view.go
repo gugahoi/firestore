@@ -22,9 +22,6 @@ func (m Model) View() string {
 		return "Initializing..."
 	}
 
-	// Header
-	header := headerStyle.Render(fmt.Sprintf("Firestore Browser - Project: %s", m.projectID))
-
 	// Construct path string from columns
 	var pathSegments []string
 	for i, col := range m.columns {
@@ -54,7 +51,7 @@ func (m Model) View() string {
 
 	// Footer
 	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  e: Edit  yy: Copy  Y: Copy ID  ya: Copy Doc  r: Refresh  q: Quit",
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  e: Edit  yy: Copy  Y: Copy ID  ya: Copy Doc  r: Refresh  q: Quit",
 	)
 
 	// Error message
@@ -77,7 +74,6 @@ func (m Model) View() string {
 	logDebug("View: about to JoinVertical")
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		header,
 		columnsView,
 		pathView,
 		errorMsg,
@@ -115,7 +111,9 @@ func (m Model) View() string {
 			lipgloss.Center,
 			dialog,
 			lipgloss.WithWhitespaceChars(" "),
-			lipgloss.WithWhitespaceForeground(colorGray), // Dim background? No, this replaces background
+			lipgloss.WithWhitespaceForeground(
+				colorGray,
+			), // Dim background? No, this replaces background
 		)
 		// Wait, this REPLACES the entire view with the placed dialog on a blank background.
 		// To show the underlying content dimmed, we'd need to manually composite.
@@ -125,6 +123,18 @@ func (m Model) View() string {
 		// Or better: render the main view, then if we could overlay...
 		// But string overlay is hard.
 		// Let's just return the dialog centered. It's a "modal" mode.
+	}
+
+	// Render sort dialog if active
+	if m.mode == ModeSortDialog {
+		dialog := m.sortDialog.View()
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+		)
 	}
 
 	// Overlay status notification if present (floating window)
@@ -340,7 +350,6 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 
 	// Calculate available height
 	// m.height includes:
-	// - header (1)
 	// - path (1)
 	// - footer (1)
 	// - some margin (1)

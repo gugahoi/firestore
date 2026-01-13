@@ -63,6 +63,7 @@ Examples:
 				loading:      true,
 				err:          nil,
 				textInput:    ti,
+				sortState:    make(map[string]sortStateEntry),
 				mode:         ModeNormal,
 			}
 

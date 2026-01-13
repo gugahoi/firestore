@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -47,7 +48,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Blur()
 				m.textInput.Reset()
 				m.loading = true
-				return m, fetchColumnData(m.client, path, isDoc, 0)
+
+				// Check if there's a saved sort state for this path
+				sortField := ""
+				sortDir := firestore.Asc
+				if state, ok := m.sortState[path]; ok {
+					sortField = state.Field
+					sortDir = state.Direction
+				}
+
+				return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir)
 			case "esc":
 				m.mode = ModeNormal
 				m.textInput.Blur()
@@ -55,6 +65,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
+		// Handle sort dialog mode
+		if m.mode == ModeSortDialog {
+			switch msg.String() {
+			case "tab":
+				// Toggle focus between text input and list
+				if m.sortDialog.focusedComponent == 0 {
+					m.sortDialog.focusedComponent = 1
+					m.sortDialog.textInput.Blur()
+				} else {
+					m.sortDialog.focusedComponent = 0
+					m.sortDialog.textInput.Focus()
+				}
+				return m, nil
+			case "d":
+				// Toggle direction
+				if m.sortDialog.direction == firestore.Asc {
+					m.sortDialog.direction = firestore.Desc
+				} else {
+					m.sortDialog.direction = firestore.Asc
+				}
+				return m, nil
+			case "enter":
+				// Apply sort
+				return m.applySortAndClose()
+			case "esc":
+				// Cancel
+				m.mode = ModeNormal
+				return m, nil
+			}
+
+			// Delegate to focused component
+			if m.sortDialog.focusedComponent == 0 {
+				// Text input focused
+				m.sortDialog.textInput, cmd = m.sortDialog.textInput.Update(msg)
+			} else {
+				// List focused
+				cmd = m.sortDialog.Update(msg)
+			}
 			return m, cmd
 		}
 
@@ -104,6 +155,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.columns[msg.columnIndex].docContent = msg.docContent
 			m.columns[msg.columnIndex].docData = msg.docData
 			m.columns[msg.columnIndex].docMetadata = msg.docMetadata
+			m.columns[msg.columnIndex].availableFields = msg.availableFields
 			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
@@ -199,6 +251,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, handleEditorFinished(msg.session)
+
+	case sortAppliedMsg:
+		// Sort has been applied
+		m.mode = ModeNormal
+		return m, nil
 	}
 
 	return m, nil
@@ -305,7 +362,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.addColumn(item.path, item.isDoc)
 			m.loading = true
 			logDebug("Fetching data for column %d", len(m.columns)-1)
-			return m, fetchColumnData(m.client, item.path, item.isDoc, len(m.columns)-1)
+
+			// Check if there's a saved sort state for this path
+			sortField := ""
+			sortDir := firestore.Asc
+			if state, ok := m.sortState[item.path]; ok {
+				sortField = state.Field
+				sortDir = state.Direction
+			}
+
+			return m, fetchColumnData(m.client, item.path, item.isDoc, len(m.columns)-1, sortField, sortDir)
 		}
 		return m, nil
 
@@ -319,6 +385,30 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Navigate back
 		m.removeLastColumn()
+		return m, nil
+
+	case "s":
+		// Open sort dialog for collections
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		if col.isDoc {
+			m.statusMsg = "Can only sort collections (not documents)"
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		if len(col.availableFields) == 0 {
+			m.statusMsg = "Collection is empty, cannot sort"
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		// Initialize sort dialog with available fields
+		m.sortDialog = initSortDialog(col.availableFields)
+		m.mode = ModeSortDialog
 		return m, nil
 
 	case "e":
@@ -341,10 +431,64 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeColumn < len(m.columns) {
 			col := m.columns[m.activeColumn]
 			m.loading = true
-			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn)
+
+			// Check if there's a saved sort state for this path
+			sortField := ""
+			sortDir := firestore.Asc
+			if state, ok := m.sortState[col.path]; ok {
+				sortField = state.Field
+				sortDir = state.Direction
+			}
+
+			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir)
 		}
 		return m, nil
 	}
 
 	return m, nil
+}
+
+// applySortAndClose applies the sort from the dialog and closes it
+func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
+	// Get selected field (text input takes priority)
+	field := m.sortDialog.getSelectedField()
+	
+	if field == "" {
+		m.statusMsg = "No field selected"
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
+	}
+
+	// Get current column
+	if m.activeColumn >= len(m.columns) {
+		return m, nil
+	}
+	col := m.columns[m.activeColumn]
+
+	// Save sort state for this collection path
+	if m.sortState == nil {
+		m.sortState = make(map[string]sortStateEntry)
+	}
+	m.sortState[col.path] = sortStateEntry{
+		Field:     field,
+		Direction: m.sortDialog.direction,
+	}
+
+	// Close dialog and refresh with sort
+	m.mode = ModeNormal
+	m.loading = true
+
+	// Show status message
+	dirStr := "Ascending"
+	if m.sortDialog.direction == firestore.Desc {
+		dirStr = "Descending"
+	}
+	m.statusMsg = fmt.Sprintf("Sorted by %s (%s)", field, dirStr)
+	m.statusMsgTime = time.Now()
+
+	return m, tea.Batch(
+		fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, field, m.sortDialog.direction),
+		clearStatusAfterDelay(),
+		func() tea.Msg { return sortAppliedMsg{} },
+	)
 }

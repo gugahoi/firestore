@@ -103,4 +103,20 @@ var (
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(colorCyan).
 				Padding(1, 2)
+
+	// Sort dialog styles
+	sortDialogStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorCyan).
+			Padding(1, 2).
+			Width(50)
+
+	sortDirectionStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorYellow).
+				Align(lipgloss.Center)
+
+	sortHintStyle = lipgloss.NewStyle().
+			Foreground(colorGray).
+			Italic(true)
 )

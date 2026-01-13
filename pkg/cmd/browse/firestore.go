@@ -91,14 +91,15 @@ func createNode(key string, value interface{}, depth int) ListItem {
 }
 
 // fetchColumnData fetches data for a specific column based on path and type
-func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int) tea.Cmd {
+func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int, sortField string, sortDirection firestore.Direction) tea.Cmd {
 	return func() tea.Msg {
-		logDebug("fetchColumnData started: path='%s', isDoc=%v, columnIndex=%d", path, isDoc, columnIndex)
+		logDebug("fetchColumnData started: path='%s', isDoc=%v, columnIndex=%d, sortField='%s'", path, isDoc, columnIndex, sortField)
 		ctx := context.Background()
 		sections := []Section{}
 		docContent := ""
 		var docData map[string]interface{}
 		docMetadata := map[string]string{}
+		availableFields := []string{}
 
 		if path == "" {
 			// Root: fetch root collections
@@ -128,8 +129,16 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			// Collection: fetch documents
 			colPath := strings.TrimPrefix(path, "/")
 			colRef := client.Collection(colPath)
-			iter := colRef.Documents(ctx)
+
+			// Apply sorting if specified
+			query := colRef.Query
+			if sortField != "" {
+				query = query.OrderBy(sortField, sortDirection)
+			}
+
+			iter := query.Documents(ctx)
 			var items []ListItem
+			firstDoc := true
 			for {
 				doc, err := iter.Next()
 				if err == iterator.Done {
@@ -138,6 +147,18 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 				if err != nil {
 					return errorMsg{err: err}
 				}
+
+				// Extract field names from first document
+				if firstDoc {
+					firstDoc = false
+					data := doc.Data()
+					for key := range data {
+						availableFields = append(availableFields, key)
+					}
+					// Sort field names for consistent order
+					sort.Strings(availableFields)
+				}
+
 				metadata := map[string]string{}
 				if !doc.CreateTime.IsZero() {
 					metadata["created"] = doc.CreateTime.Local().Format("2006-01-02 15:04:05")
@@ -250,11 +271,12 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 		}
 
 		result := fetchedColumnMsg{
-			columnIndex: columnIndex,
-			sections:    sections,
-			docContent:  docContent,
-			docData:     docData,
-			docMetadata: docMetadata,
+			columnIndex:     columnIndex,
+			sections:        sections,
+			docContent:      docContent,
+			docData:         docData,
+			docMetadata:     docMetadata,
+			availableFields: availableFields,
 		}
 		logDebug("fetchColumnData completed: columnIndex=%d, sections=%d, docContentLen=%d, docData keys=%d",
 			columnIndex, len(sections), len(docContent), len(docData))

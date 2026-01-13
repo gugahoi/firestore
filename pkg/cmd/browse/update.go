@@ -103,6 +103,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.columns[msg.columnIndex].sections = msg.sections
 			m.columns[msg.columnIndex].docContent = msg.docContent
 			m.columns[msg.columnIndex].docData = msg.docData
+			m.columns[msg.columnIndex].docMetadata = msg.docMetadata
 			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
@@ -153,6 +154,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						items: buildTreeNodes(msg.data),
 					},
 				}
+
+				// Add existing Metadata section if present
+				if len(col.docMetadata) > 0 {
+					var metadataItems []ListItem
+					keys := []string{"Created", "Updated", "Read"}
+					for _, k := range keys {
+						if v, ok := col.docMetadata[k]; ok {
+							metadataItems = append(metadataItems, ListItem{
+								id:     fmt.Sprintf("%s: %s", k, v),
+								isData: false,
+								isDoc:  false,
+							})
+						}
+					}
+					sections = append(sections, Section{
+						title:  "Metadata",
+						items:  metadataItems,
+						hidden: false,
+					})
+				}
+
 				col.sections = sections
 			}
 		}

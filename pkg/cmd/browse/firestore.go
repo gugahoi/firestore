@@ -98,6 +98,7 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 		sections := []Section{}
 		docContent := ""
 		var docData map[string]interface{}
+		docMetadata := map[string]string{}
 
 		if path == "" {
 			// Root: fetch root collections
@@ -193,6 +194,18 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 				return errorMsg{err: err}
 			}
 
+			// Extract metadata
+			docMetadata = map[string]string{}
+			if !snap.CreateTime.IsZero() {
+				docMetadata["Created"] = snap.CreateTime.Local().Format("2006-01-02 15:04:05")
+			}
+			if !snap.UpdateTime.IsZero() {
+				docMetadata["Updated"] = snap.UpdateTime.Local().Format("2006-01-02 15:04:05")
+			}
+			if !snap.ReadTime.IsZero() {
+				docMetadata["Read"] = snap.ReadTime.Local().Format("2006-01-02 15:04:05")
+			}
+
 			// Format as JSON
 			docData = snap.Data()
 			var buf bytes.Buffer
@@ -213,6 +226,27 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					hidden: false,
 				})
 			}
+
+			// Create Metadata section
+			if len(docMetadata) > 0 {
+				var metadataItems []ListItem
+				// Sort keys for consistent order
+				keys := []string{"Created", "Updated", "Read"}
+				for _, k := range keys {
+					if v, ok := docMetadata[k]; ok {
+						metadataItems = append(metadataItems, ListItem{
+							id:     fmt.Sprintf("%s: %s", k, v),
+							isData: false,
+							isDoc:  false,
+						})
+					}
+				}
+				sections = append(sections, Section{
+					title:  "Metadata",
+					items:  metadataItems,
+					hidden: false,
+				})
+			}
 		}
 
 		result := fetchedColumnMsg{
@@ -220,6 +254,7 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			sections:    sections,
 			docContent:  docContent,
 			docData:     docData,
+			docMetadata: docMetadata,
 		}
 		logDebug("fetchColumnData completed: columnIndex=%d, sections=%d, docContentLen=%d, docData keys=%d",
 			columnIndex, len(sections), len(docContent), len(docData))

@@ -39,16 +39,22 @@ func NewQueryCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&sort, "sort", "s", "", "field to sort by")
-	cmd.Flags().StringVarP(&fields, "fields", "q", "", "fields to include in the response, comma separated. e.g.: id,name,age")
+	cmd.Flags().
+		StringVarP(&fields, "fields", "q", "", "fields to include in the response, comma separated. e.g.: id,name,age")
 	cmd.Flags().StringVarP(&direction, "direction", "d", "", "direction to sort by (asc|desc)")
-	cmd.Flags().StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
-	cmd.Flags().IntVarP(&limit, "limit", "l", 0, "maximum number of documents to return, 0 for no limit")
+	cmd.Flags().
+		StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
+	cmd.Flags().
+		IntVarP(&limit, "limit", "l", 0, "maximum number of documents to return, 0 for no limit")
 	cmd.Flags().BoolVar(&showID, "show-id", true, "show document ID in output")
 
 	return cmd
 }
 
 func parseFields(fields string) []string {
+	if fields == "" {
+		return nil
+	}
 	return strings.Split(fields, ",")
 }
 
@@ -101,7 +107,15 @@ func parseSort(field, direction string) *OrderBy {
 	return &orderBy
 }
 
-func query(client *firestore.Client, path string, orderBy *OrderBy, limit int, filters *[]Filter, fields []string, showID bool) error {
+func query(
+	client *firestore.Client,
+	path string,
+	orderBy *OrderBy,
+	limit int,
+	filters *[]Filter,
+	fields []string,
+	showID bool,
+) error {
 	collection := client.Collection(strings.TrimPrefix(path, "/"))
 	if collection == nil {
 		return fmt.Errorf("invalid path: %q", path)
@@ -118,7 +132,9 @@ func query(client *firestore.Client, path string, orderBy *OrderBy, limit int, f
 		query = query.Limit(limit)
 	}
 
-	query = query.Select(fields...)
+	if fields != nil {
+		query = query.Select(fields...)
+	}
 
 	iter := query.Documents(context.Background())
 	w := tabwriter.NewWriter(os.Stdout, 1, 4, 1, ' ', 0)

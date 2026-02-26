@@ -15,7 +15,13 @@ import (
 )
 
 func NewDownloadCmd() *cobra.Command {
-	var outputDir string
+	var (
+		outputDir string
+		filters   []string
+		limit     int
+		sort      string
+		direction string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "download [collection]",
@@ -24,19 +30,41 @@ func NewDownloadCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client := cmd.Context().Value(keys.ClientKey).(*firestore.Client)
-			return download(client, args[0], outputDir)
+			parsedFilters := parseFilters(filters)
+			orderBy := parseSort(sort, direction)
+			return download(client, args[0], outputDir, limit, parsedFilters, orderBy)
 		},
 	}
 
 	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "output directory for downloaded files")
+	cmd.Flags().
+		StringSliceVarP(&filters, "filters", "f", []string{}, "filters to apply to the query, e.g.: id==2")
+	cmd.Flags().
+		IntVarP(&limit, "limit", "l", 0, "maximum number of documents to return, 0 for no limit")
+	cmd.Flags().StringVarP(&sort, "sort", "s", "", "field to sort by")
+	cmd.Flags().StringVarP(&direction, "direction", "d", "", "direction to sort by (asc|desc)")
 
 	return cmd
 }
 
-func download(client *firestore.Client, src string, outputDir string) error {
+func download(client *firestore.Client, src string, outputDir string, limit int, filters *[]Filter, orderBy *OrderBy) error {
 	ctx := context.Background()
 	col := client.Collection(strings.TrimPrefix(src, "/"))
-	iter := col.Documents(ctx)
+
+	query := col.Query
+	if orderBy != nil {
+		query = col.OrderBy(orderBy.Path, orderBy.Direction)
+	}
+	if filters != nil {
+		for _, filter := range *filters {
+			query = query.Where(filter.Field, filter.Operator, filter.Value)
+		}
+	}
+	if limit != 0 {
+		query = query.Limit(limit)
+	}
+
+	iter := query.Documents(ctx)
 
 	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(outputDir, 0755); err != nil {

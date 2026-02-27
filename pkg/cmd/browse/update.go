@@ -147,7 +147,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.columns[msg.columnIndex].docContent = msg.docContent
 			m.columns[msg.columnIndex].docData = msg.docData
 			m.columns[msg.columnIndex].docMetadata = msg.docMetadata
-			m.columns[msg.columnIndex].availableFields = msg.availableFields
+			if len(msg.availableFields) > 0 {
+				m.columns[msg.columnIndex].availableFields = msg.availableFields
+			}
 			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
@@ -380,16 +382,32 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, clearStatusAfterDelay()
 		}
 
-		if len(col.availableFields) == 0 {
-			m.statusMsg = "Collection is empty, cannot sort"
-			m.statusMsgTime = time.Now()
-			return m, clearStatusAfterDelay()
-		}
-
 		// Initialize sort dialog with available fields
 		m.sortDialog = initSortDialog(col.availableFields)
 		m.mode = ModeSortDialog
 		return m, nil
+
+	case "S":
+		// Clear sort for current collection
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		if col.isDoc {
+			return m, nil
+		}
+
+		delete(m.sortState, col.path)
+
+		m.statusMsg = "Sort cleared"
+		m.statusMsgTime = time.Now()
+		m.loading = true
+
+		return m, tea.Batch(
+			fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, "", 0),
+			clearStatusAfterDelay(),
+		)
 
 	case "e":
 		// Edit document

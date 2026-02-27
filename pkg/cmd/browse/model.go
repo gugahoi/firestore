@@ -16,6 +16,7 @@ type InputMode int
 const (
 	ModeNormal InputMode = iota
 	ModePathInput
+	ModeSortDialog
 )
 
 // Model represents the entire TUI state
@@ -34,6 +35,10 @@ type Model struct {
 	mode      InputMode
 	textInput textinput.Model
 
+	// Sort dialog
+	sortDialog sortDialogModel
+	sortState  map[string]sortStateEntry // Path -> sort state
+
 	// Clipboard copy state
 	lastKeyPress  string    // Track last key pressed for double-tap
 	lastKeyTime   time.Time // Timestamp of last key press
@@ -41,17 +46,24 @@ type Model struct {
 	statusMsgTime time.Time // When status message was set
 }
 
+// sortStateEntry stores sort configuration for a collection path
+type sortStateEntry struct {
+	Field     string
+	Direction firestore.Direction
+}
+
 // Column represents a single column in the Miller columns layout
 type Column struct {
-	path         string                 // Firestore path this column represents
-	isDoc        bool                   // true if this is a document, false if collection
-	sections     []Section              // Documents and/or Subcollections sections
-	docContent   string                 // Raw JSON content (only for document columns)
-	docData      map[string]interface{} // Parsed data map
-	docMetadata  map[string]string      // Document metadata (CreateTime, UpdateTime, etc.)
-	viewport     viewport.Model         // Scrollable viewport for document content
-	cursor       int                    // Selected index across all items
-	scrollOffset int                    // Scroll position for lists
+	path            string                 // Firestore path this column represents
+	isDoc           bool                   // true if this is a document, false if collection
+	sections        []Section              // Documents and/or Subcollections sections
+	docContent      string                 // Raw JSON content (only for document columns)
+	docData         map[string]interface{} // Parsed data map
+	docMetadata     map[string]string      // Document metadata (CreateTime, UpdateTime, etc.)
+	availableFields []string               // Field names from first document (for collections)
+	viewport        viewport.Model         // Scrollable viewport for document content
+	cursor          int                    // Selected index across all items
+	scrollOffset    int                    // Scroll position for lists
 }
 
 // Section represents a section within a column (Documents or Subcollections)
@@ -80,11 +92,12 @@ type ListItem struct {
 
 // Message types for async operations
 type fetchedColumnMsg struct {
-	columnIndex int
-	sections    []Section
-	docContent  string
-	docData     map[string]interface{}
-	docMetadata map[string]string
+	columnIndex     int
+	sections        []Section
+	docContent      string
+	docData         map[string]interface{}
+	docMetadata     map[string]string
+	availableFields []string
 }
 
 type errorMsg struct {
@@ -100,6 +113,14 @@ type clearStatusMsg struct{}
 type documentUpdatedMsg struct {
 	path string
 	data map[string]interface{}
+}
+
+// getSortParams returns the saved sort field and direction for a given path
+func (m Model) getSortParams(path string) (string, firestore.Direction) {
+	if state, ok := m.sortState[path]; ok {
+		return state.Field, state.Direction
+	}
+	return "", firestore.Asc
 }
 
 // Init initializes the model
@@ -123,9 +144,10 @@ func (m Model) Init() tea.Cmd {
 
 	// Fetch initial data for first column
 	if len(m.columns) > 0 {
+		sortField, sortDir := m.getSortParams(m.columns[0].path)
 		return tea.Batch(
 			textinput.Blink,
-			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0),
+			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0, sortField, sortDir),
 		)
 	}
 	return textinput.Blink

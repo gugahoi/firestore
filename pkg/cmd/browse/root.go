@@ -19,6 +19,36 @@ func NewBrowseCmd() *cobra.Command {
 		Short: "Interactive browser for Firestore database",
 		Long: `Launch an interactive TUI to browse collections, documents, and subcollections.
 
+Navigation:
+  j/k or Up/Down       Move cursor up/down
+  h/l or Left/Right    Navigate back/forward through columns
+  Enter                Navigate forward / toggle tree node
+  Space                Toggle tree node expansion
+  g/G                  Jump to top/bottom of list
+  Ctrl+d/Ctrl+u        Page down/up
+  Ctrl+g               Go to a specific Firestore path
+
+Sorting (collections only):
+  s                    Open sort dialog
+  S                    Clear sort and refresh
+  Sort dialog controls:
+    Tab                Switch focus between text input and field list
+    Ctrl+d             Toggle direction (Ascending/Descending)
+    Enter              Apply sort
+    Esc                Cancel
+
+Editing:
+  e                    Edit document in $EDITOR
+
+Clipboard:
+  yy                   Copy selected value
+  Y                    Copy document/collection ID
+  ya                   Copy entire document as JSON
+
+Other:
+  r                    Refresh current column
+  q/Esc                Quit
+
 Examples:
   firestore browse                  Browse from root collections
   firestore browse users            Start at 'users' collection
@@ -63,6 +93,7 @@ Examples:
 				loading:      true,
 				err:          nil,
 				textInput:    ti,
+				sortState:    make(map[string]sortStateEntry),
 				mode:         ModeNormal,
 			}
 

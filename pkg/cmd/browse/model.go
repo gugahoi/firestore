@@ -115,7 +115,13 @@ type documentUpdatedMsg struct {
 	data map[string]interface{}
 }
 
-type sortAppliedMsg struct{}
+// getSortParams returns the saved sort field and direction for a given path
+func (m Model) getSortParams(path string) (string, firestore.Direction) {
+	if state, ok := m.sortState[path]; ok {
+		return state.Field, state.Direction
+	}
+	return "", firestore.Asc
+}
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
@@ -138,14 +144,7 @@ func (m Model) Init() tea.Cmd {
 
 	// Fetch initial data for first column
 	if len(m.columns) > 0 {
-		// Check if there's a saved sort state for this path
-		sortField := ""
-		sortDir := firestore.Asc
-		if state, ok := m.sortState[m.columns[0].path]; ok {
-			sortField = state.Field
-			sortDir = state.Direction
-		}
-
+		sortField, sortDir := m.getSortParams(m.columns[0].path)
 		return tea.Batch(
 			textinput.Blink,
 			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0, sortField, sortDir),

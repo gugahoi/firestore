@@ -109,7 +109,7 @@ func (d sortDialogModel) View() string {
 	)
 
 	// Keyboard hints
-	hints := sortHintStyle.Render("Tab: Switch  d: Direction  ↑↓: Navigate  Enter: OK  Esc: Cancel")
+	hints := sortHintStyle.Render("Tab: Switch  Ctrl+d: Direction  ↑↓: Navigate  Enter: OK  Esc: Cancel")
 
 	// Combine all sections
 	content := lipgloss.JoinVertical(

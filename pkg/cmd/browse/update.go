@@ -48,15 +48,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Blur()
 				m.textInput.Reset()
 				m.loading = true
-
-				// Check if there's a saved sort state for this path
-				sortField := ""
-				sortDir := firestore.Asc
-				if state, ok := m.sortState[path]; ok {
-					sortField = state.Field
-					sortDir = state.Direction
-				}
-
+				sortField, sortDir := m.getSortParams(path)
 				return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir)
 			case "esc":
 				m.mode = ModeNormal
@@ -81,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sortDialog.textInput.Focus()
 				}
 				return m, nil
-			case "d":
+			case "ctrl+d":
 				// Toggle direction
 				if m.sortDialog.direction == firestore.Asc {
 					m.sortDialog.direction = firestore.Desc
@@ -252,10 +244,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, handleEditorFinished(msg.session)
 
-	case sortAppliedMsg:
-		// Sort has been applied
-		m.mode = ModeNormal
-		return m, nil
 	}
 
 	return m, nil
@@ -362,15 +350,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.addColumn(item.path, item.isDoc)
 			m.loading = true
 			logDebug("Fetching data for column %d", len(m.columns)-1)
-
-			// Check if there's a saved sort state for this path
-			sortField := ""
-			sortDir := firestore.Asc
-			if state, ok := m.sortState[item.path]; ok {
-				sortField = state.Field
-				sortDir = state.Direction
-			}
-
+			sortField, sortDir := m.getSortParams(item.path)
 			return m, fetchColumnData(m.client, item.path, item.isDoc, len(m.columns)-1, sortField, sortDir)
 		}
 		return m, nil
@@ -431,15 +411,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeColumn < len(m.columns) {
 			col := m.columns[m.activeColumn]
 			m.loading = true
-
-			// Check if there's a saved sort state for this path
-			sortField := ""
-			sortDir := firestore.Asc
-			if state, ok := m.sortState[col.path]; ok {
-				sortField = state.Field
-				sortDir = state.Direction
-			}
-
+			sortField, sortDir := m.getSortParams(col.path)
 			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir)
 		}
 		return m, nil
@@ -466,9 +438,6 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 	col := m.columns[m.activeColumn]
 
 	// Save sort state for this collection path
-	if m.sortState == nil {
-		m.sortState = make(map[string]sortStateEntry)
-	}
 	m.sortState[col.path] = sortStateEntry{
 		Field:     field,
 		Direction: m.sortDialog.direction,
@@ -489,6 +458,5 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(
 		fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, field, m.sortDialog.direction),
 		clearStatusAfterDelay(),
-		func() tea.Msg { return sortAppliedMsg{} },
 	)
 }

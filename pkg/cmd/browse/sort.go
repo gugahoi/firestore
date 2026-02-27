@@ -1,6 +1,9 @@
 package browse
 
 import (
+	"fmt"
+	"io"
+
 	"cloud.google.com/go/firestore"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -24,7 +27,24 @@ type fieldItem struct {
 
 func (i fieldItem) FilterValue() string { return i.name }
 func (i fieldItem) Title() string       { return i.name }
-func (i fieldItem) Description() string { return "" }
+
+// compactDelegate renders list items as single lines with no spacing.
+type compactDelegate struct{}
+
+func (d compactDelegate) Height() int                             { return 1 }
+func (d compactDelegate) Spacing() int                            { return 0 }
+func (d compactDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d compactDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	fi, ok := item.(fieldItem)
+	if !ok {
+		return
+	}
+	line := "  " + fi.name
+	if index == m.Index() {
+		line = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Render("> " + fi.name)
+	}
+	fmt.Fprint(w, line)
+}
 
 // initSortDialog creates and initializes a new sort dialog
 func initSortDialog(fields []string) sortDialogModel {
@@ -42,7 +62,7 @@ func initSortDialog(fields []string) sortDialogModel {
 	}
 
 	// Initialize list
-	l := list.New(items, list.NewDefaultDelegate(), 42, 12)
+	l := list.New(items, compactDelegate{}, 42, 8)
 	l.Title = ""
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)

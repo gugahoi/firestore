@@ -2,6 +2,45 @@
 
 Firestore is a command line utility to facilitate operations with Firestore from the command line.
 
+## Installation
+
+### Prebuilt binary (recommended)
+
+Download the archive for your platform from the [latest release](https://github.com/gugahoi/firestore/releases/latest). Archives are named `firestore_<OS>_<arch>` (e.g. `firestore_Darwin_arm64.tar.gz`, `firestore_Linux_x86_64.tar.gz`, `firestore_Windows_x86_64.zip`).
+
+```bash
+# macOS / Linux example — adjust the URL for your OS and architecture
+curl -L -o firestore.tar.gz https://github.com/gugahoi/firestore/releases/latest/download/firestore_Darwin_arm64.tar.gz
+tar -xzf firestore.tar.gz firestore
+sudo mv firestore /usr/local/bin/
+firestore --help
+```
+
+On Windows, extract the `.zip` and move `firestore.exe` to a directory on your `PATH`.
+
+### With `go install`
+
+Requires Go 1.24 or newer.
+
+```bash
+go install github.com/gugahoi/firestore@latest
+```
+
+This places the `firestore` binary in `$(go env GOBIN)` (or `$(go env GOPATH)/bin` if `GOBIN` is unset). Make sure that directory is on your `PATH`.
+
+### From source
+
+Requires Go 1.24 or newer.
+
+```bash
+git clone https://github.com/gugahoi/firestore.git
+cd firestore
+go build -o firestore .
+./firestore --help
+```
+
+Move the resulting binary somewhere on your `PATH` (e.g. `sudo mv firestore /usr/local/bin/`) to use it from anywhere.
+
 ## Usage
 
 ### Authentication

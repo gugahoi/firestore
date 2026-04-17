@@ -4,12 +4,38 @@ Firestore is a command line utility to facilitate operations with Firestore from
 
 ## Usage
 
-Currently both `PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` are required.
+### Authentication
 
+Log in with your Google account:
+
+```bash
+firestore auth login
 ```
-export PROJECT_ID=my-project
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
 
+This opens a browser-based OAuth2 flow and saves Application Default Credentials locally. No external tools (like `gcloud`) are required.
+
+You can check your authentication status or revoke credentials at any time:
+
+```bash
+firestore auth status
+firestore auth revoke
+```
+
+Alternatively, you can set `GOOGLE_APPLICATION_CREDENTIALS` to point to a service account key file.
+
+### Project
+
+Set the project via the `--project` flag or the `PROJECT_ID` environment variable:
+
+```bash
+export PROJECT_ID=my-project
+# or
+firestore -p my-project <command>
+```
+
+### Examples
+
+```bash
 # copying a document
 firestore document cp /my-collection/my-document /my-collection/another-document
 

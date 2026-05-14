@@ -22,6 +22,10 @@ var rootCmd = &cobra.Command{
 	Short:        "perform actions on firestore",
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if isCompletionCommand(cmd) {
+			return nil
+		}
+
 		if projectId == "" {
 			envValue := os.Getenv("PROJECT_ID")
 			if envValue == "" {
@@ -46,6 +50,16 @@ var rootCmd = &cobra.Command{
 		cmd.SetContext(ctx)
 		return nil
 	},
+}
+
+func isCompletionCommand(cmd *cobra.Command) bool {
+	for cmd != nil {
+		if cmd.Name() == "completion" || cmd.Name() == cobra.ShellCompRequestCmd {
+			return true
+		}
+		cmd = cmd.Parent()
+	}
+	return false
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

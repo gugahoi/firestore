@@ -342,6 +342,24 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCopyAlternate()
 	}
 
+	// Handle pending z-key for fold controls
+	if m.pendingZKey {
+		m.pendingZKey = false
+		switch currentKey {
+		case "M":
+			m.foldAll(false)
+		case "R":
+			m.foldAll(true)
+		case "1":
+			m.foldToDepth(1)
+		case "2":
+			m.foldToDepth(2)
+		case "3":
+			m.foldToDepth(3)
+		}
+		return m, nil
+	}
+
 	// Handle pending mark operations
 	if m.pendingMark == "m" {
 		m.pendingMark = ""
@@ -518,6 +536,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, "", 0, withLimit(m.pageLimit)),
 			clearStatusAfterDelay(),
 		)
+
+	case "z":
+		m.pendingZKey = true
+		return m, nil
 
 	case "p":
 		m.previewEnabled = !m.previewEnabled

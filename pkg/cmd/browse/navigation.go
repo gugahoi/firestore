@@ -402,3 +402,56 @@ func getVisibleColumns(columns []Column, activeColumn int) []Column {
 
 	return columns[start:]
 }
+
+func (m *Model) foldAll(expand bool) {
+	if m.activeColumn >= len(m.columns) {
+		return
+	}
+	col := &m.columns[m.activeColumn]
+	if !col.isDoc {
+		return
+	}
+	for i := range col.sections {
+		if col.sections[i].title == "Data" {
+			setExpandAll(col.sections[i].items, expand)
+		}
+	}
+}
+
+func (m *Model) foldToDepth(maxDepth int) {
+	if m.activeColumn >= len(m.columns) {
+		return
+	}
+	col := &m.columns[m.activeColumn]
+	if !col.isDoc {
+		return
+	}
+	for i := range col.sections {
+		if col.sections[i].title == "Data" {
+			setExpandToDepth(col.sections[i].items, 0, maxDepth)
+		}
+	}
+	// Reset cursor if it would be on a hidden node
+	totalItems := m.getAllItemsCount(*col)
+	if col.cursor >= totalItems && totalItems > 0 {
+		col.cursor = totalItems - 1
+	}
+}
+
+func setExpandAll(items []ListItem, expand bool) {
+	for i := range items {
+		items[i].expanded = expand
+		if len(items[i].children) > 0 {
+			setExpandAll(items[i].children, expand)
+		}
+	}
+}
+
+func setExpandToDepth(items []ListItem, currentDepth int, maxDepth int) {
+	for i := range items {
+		items[i].expanded = currentDepth < maxDepth
+		if len(items[i].children) > 0 {
+			setExpandToDepth(items[i].children, currentDepth+1, maxDepth)
+		}
+	}
+}

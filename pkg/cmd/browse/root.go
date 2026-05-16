@@ -116,6 +116,7 @@ Examples:
 				pageLimit:       50,
 				selection:       NewSelection(),
 				marks:           make(map[rune]markEntry),
+				jumplist:        NewJumplist(),
 			}
 
 			// Run TUI

@@ -33,6 +33,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}
+			if msg.String() == "ctrl+o" {
+				entry, ok := m.jumplist.Back()
+				if ok {
+					m.columns = []Column{{path: entry.Path, isDoc: entry.IsDoc, scrollOffset: 0}}
+					m.activeColumn = 0
+					m.loading = true
+					sortField, sortDir := m.getSortParams(entry.Path)
+					return m, fetchColumnData(m.client, entry.Path, entry.IsDoc, 0, sortField, sortDir, withLimit(m.pageLimit))
+				}
+				return m, nil
+			}
+			if msg.String() == "ctrl+i" {
+				entry, ok := m.jumplist.Forward()
+				if ok {
+					m.columns = []Column{{path: entry.Path, isDoc: entry.IsDoc, scrollOffset: 0}}
+					m.activeColumn = 0
+					m.loading = true
+					sortField, sortDir := m.getSortParams(entry.Path)
+					return m, fetchColumnData(m.client, entry.Path, entry.IsDoc, 0, sortField, sortDir, withLimit(m.pageLimit))
+				}
+				return m, nil
+			}
 			// Enter filter mode
 			if msg.String() == "/" {
 				m.overlay = OverlayFilter
@@ -322,6 +344,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsgTime = time.Now()
 				return m, clearStatusAfterDelay()
 			}
+			// Push current location to jumplist
+			if m.activeColumn < len(m.columns) {
+				cur := m.columns[m.activeColumn]
+				m.jumplist.Push(cur.path, cur.isDoc)
+			}
 			m.columns = []Column{{path: mark.path, isDoc: mark.isDoc, scrollOffset: 0}}
 			m.activeColumn = 0
 			m.loading = true
@@ -404,6 +431,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 
 			logDebug("Adding column: path='%s', isDoc=%v", item.path, item.isDoc)
+			// Push current path to jumplist before navigating forward
+			if m.activeColumn < len(m.columns) {
+				cur := m.columns[m.activeColumn]
+				m.jumplist.Push(cur.path, cur.isDoc)
+			}
 			m.addColumn(item.path, item.isDoc)
 			m.loading = true
 			logDebug("Fetching data for column %d", len(m.columns)-1)

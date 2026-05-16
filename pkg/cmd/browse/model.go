@@ -86,6 +86,9 @@ type Model struct {
 	marks       map[rune]markEntry
 	pendingMark string // "m" or "'" when waiting for next key
 
+	// Jumplist
+	jumplist *Jumplist
+
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column

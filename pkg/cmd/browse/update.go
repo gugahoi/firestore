@@ -90,18 +90,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case fetchedColumnMsg:
-		logDebug("fetchedColumnMsg received: columnIndex=%d, sections=%d, docContentLen=%d",
-			msg.columnIndex, len(msg.sections), len(msg.docContent))
-		// Update the specified column with fetched data
+		logDebug("fetchedColumnMsg received: columnIndex=%d, sections=%d, docContentLen=%d, append=%v",
+			msg.columnIndex, len(msg.sections), len(msg.docContent), msg.appendItems)
 		if msg.columnIndex < len(m.columns) {
-			m.columns[msg.columnIndex].sections = msg.sections
-			m.columns[msg.columnIndex].docContent = msg.docContent
-			m.columns[msg.columnIndex].docData = msg.docData
-			m.columns[msg.columnIndex].docMetadata = msg.docMetadata
-			if len(msg.availableFields) > 0 {
-				m.columns[msg.columnIndex].availableFields = msg.availableFields
+			if msg.appendItems {
+				// Append new items to existing sections
+				col := &m.columns[msg.columnIndex]
+				for i, newSection := range msg.sections {
+					if i < len(col.sections) && col.sections[i].title == newSection.title {
+						// Remove old "Load more..." sentinel
+						existingItems := col.sections[i].items
+						if len(existingItems) > 0 && existingItems[len(existingItems)-1].path == "__load_more__" {
+							existingItems = existingItems[:len(existingItems)-1]
+						}
+						// Append new items
+						col.sections[i].items = append(existingItems, newSection.items...)
+						col.sections[i].hidden = len(col.sections[i].items) == 0
+					}
+				}
+				col.hasMore = msg.hasMore
+				col.docCount += msg.docCount
+			} else {
+				m.columns[msg.columnIndex].sections = msg.sections
+				m.columns[msg.columnIndex].docContent = msg.docContent
+				m.columns[msg.columnIndex].docData = msg.docData
+				m.columns[msg.columnIndex].docMetadata = msg.docMetadata
+				if len(msg.availableFields) > 0 {
+					m.columns[msg.columnIndex].availableFields = msg.availableFields
+				}
+				m.columns[msg.columnIndex].scrollOffset = 0
+				m.columns[msg.columnIndex].hasMore = msg.hasMore
+				m.columns[msg.columnIndex].docCount = msg.docCount
 			}
-			m.columns[msg.columnIndex].scrollOffset = 0 // Reset scroll to top when new data arrives
 
 			// Initialize viewport if this is a document column
 			// Only create viewport if we have valid dimensions
@@ -200,7 +220,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 
 			return m, tea.Batch(
-				fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir),
+				fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir, withLimit(m.pageLimit)),
 				clearStatusAfterDelay(),
 			)
 		}
@@ -316,6 +336,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		item := m.getSelectedItem()
 		logDebug("Forward navigation - selected item: %v", item)
 		if item != nil {
+			// Handle "Load more..." sentinel
+			if item.path == "__load_more__" {
+				if m.activeColumn < len(m.columns) {
+					col := m.columns[m.activeColumn]
+					m.loading = true
+					sortField, sortDir := m.getSortParams(col.path)
+					return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir,
+						withLimit(m.pageLimit), withOffset(col.docCount), withAppend())
+				}
+				return m, nil
+			}
 			if item.isData {
 				// Handle tree expansion/toggle
 				if msg.String() == "enter" {
@@ -331,7 +362,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			logDebug("Fetching data for column %d", len(m.columns)-1)
 			sortField, sortDir := m.getSortParams(item.path)
-			return m, fetchColumnData(m.client, item.path, item.isDoc, len(m.columns)-1, sortField, sortDir)
+			return m, fetchColumnData(m.client, item.path, item.isDoc, len(m.columns)-1, sortField, sortDir, withLimit(m.pageLimit))
 		}
 		return m, nil
 
@@ -383,7 +414,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 
 		return m, tea.Batch(
-			fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, "", 0),
+			fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, "", 0, withLimit(m.pageLimit)),
 			clearStatusAfterDelay(),
 		)
 
@@ -408,7 +439,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			col := m.columns[m.activeColumn]
 			m.loading = true
 			sortField, sortDir := m.getSortParams(col.path)
-			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir)
+			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir, withLimit(m.pageLimit))
 		}
 		return m, nil
 
@@ -467,7 +498,7 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.textInput.Reset()
 			m.loading = true
 			sortField, sortDir := m.getSortParams(path)
-			return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir)
+			return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir, withLimit(m.pageLimit))
 		case "esc":
 			m.overlay = OverlayNone
 			m.textInput.Blur()
@@ -600,7 +631,7 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 	m.statusMsgTime = time.Now()
 
 	return m, tea.Batch(
-		fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, field, m.sortDialog.direction),
+		fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, field, m.sortDialog.direction, withLimit(m.pageLimit)),
 		clearStatusAfterDelay(),
 	)
 }
@@ -650,7 +681,7 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			pf := m.pendingFetch
 			m.pendingFetch = nil
 			return m, tea.Batch(
-				fetchColumnData(m.client, pf.path, pf.isDoc, pf.colIndex, pf.sortField, pf.sortDir),
+				fetchColumnData(m.client, pf.path, pf.isDoc, pf.colIndex, pf.sortField, pf.sortDir, pf.opts...),
 				clearStatusAfterDelay(),
 			)
 		}

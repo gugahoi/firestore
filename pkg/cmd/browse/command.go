@@ -3,6 +3,7 @@ package browse
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"cloud.google.com/go/firestore"
@@ -75,6 +76,7 @@ type pendingFetchCmd struct {
 	colIndex  int
 	sortField string
 	sortDir   firestore.Direction
+	opts      []fetchOption
 }
 
 func initCommandRegistry() *CommandRegistry {
@@ -106,6 +108,13 @@ func initCommandRegistry() *CommandRegistry {
 		Description: "Sort collection by field",
 		Usage:       ":sort <field> [asc|desc]",
 		Handler:     cmdSort,
+	})
+
+	r.Register(Command{
+		Name:        "set",
+		Description: "Set a configuration value",
+		Usage:       ":set limit <n>",
+		Handler:     cmdSet,
 	})
 
 	return r
@@ -140,7 +149,7 @@ func cmdGoto(m *Model, args []string) (string, error) {
 	m.loading = true
 
 	sortField, sortDir := m.getSortParams(path)
-	m.pendingFetch = &pendingFetchCmd{path: path, isDoc: isDoc, colIndex: 0, sortField: sortField, sortDir: sortDir}
+	m.pendingFetch = &pendingFetchCmd{path: path, isDoc: isDoc, colIndex: 0, sortField: sortField, sortDir: sortDir, opts: []fetchOption{withLimit(m.pageLimit)}}
 
 	return fmt.Sprintf("Navigating to /%s", path), nil
 }
@@ -154,7 +163,7 @@ func cmdRefresh(m *Model, args []string) (string, error) {
 	m.loading = true
 
 	sortField, sortDir := m.getSortParams(col.path)
-	m.pendingFetch = &pendingFetchCmd{path: col.path, isDoc: col.isDoc, colIndex: m.activeColumn, sortField: sortField, sortDir: sortDir}
+	m.pendingFetch = &pendingFetchCmd{path: col.path, isDoc: col.isDoc, colIndex: m.activeColumn, sortField: sortField, sortDir: sortDir, opts: []fetchOption{withLimit(m.pageLimit)}}
 
 	return "Refreshing...", nil
 }
@@ -192,11 +201,29 @@ func cmdSort(m *Model, args []string) (string, error) {
 	}
 
 	m.loading = true
-	m.pendingFetch = &pendingFetchCmd{path: col.path, isDoc: col.isDoc, colIndex: m.activeColumn, sortField: field, sortDir: dir}
+	m.pendingFetch = &pendingFetchCmd{path: col.path, isDoc: col.isDoc, colIndex: m.activeColumn, sortField: field, sortDir: dir, opts: []fetchOption{withLimit(m.pageLimit)}}
 
 	dirStr := "Ascending"
 	if dir == firestore.Desc {
 		dirStr = "Descending"
 	}
 	return fmt.Sprintf("Sorted by %s (%s)", field, dirStr), nil
+}
+
+func cmdSet(m *Model, args []string) (string, error) {
+	if len(args) < 2 {
+		return "", fmt.Errorf("usage: :set limit <n>")
+	}
+
+	switch args[0] {
+	case "limit":
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1 {
+			return "", fmt.Errorf("limit must be a positive integer")
+		}
+		m.pageLimit = n
+		return fmt.Sprintf("Page limit set to %d", n), nil
+	default:
+		return "", fmt.Errorf("unknown setting: %s", args[0])
+	}
 }

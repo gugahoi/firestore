@@ -76,6 +76,9 @@ type Model struct {
 	statusMsg     string    // Status message to display
 	statusMsgTime time.Time // When status message was set
 
+	// Pagination
+	pageLimit int
+
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
@@ -104,6 +107,8 @@ type Column struct {
 	viewport        viewport.Model         // Scrollable viewport for document content
 	cursor          int                    // Selected index across all items
 	scrollOffset    int                    // Scroll position for lists
+	hasMore         bool                   // true if more pages available
+	docCount        int                    // total document count loaded so far
 }
 
 // Section represents a section within a column (Documents or Subcollections)
@@ -139,6 +144,9 @@ type fetchedColumnMsg struct {
 	docData         map[string]interface{}
 	docMetadata     map[string]string
 	availableFields []string
+	hasMore         bool
+	docCount        int
+	appendItems     bool // true when loading more pages (append to existing)
 }
 
 type errorMsg struct {
@@ -193,7 +201,7 @@ func (m Model) Init() tea.Cmd {
 		sortField, sortDir := m.getSortParams(m.columns[0].path)
 		return tea.Batch(
 			textinput.Blink,
-			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0, sortField, sortDir),
+			fetchColumnData(m.client, m.columns[0].path, m.columns[0].isDoc, 0, sortField, sortDir, withLimit(m.pageLimit)),
 		)
 	}
 	return textinput.Blink

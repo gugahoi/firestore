@@ -657,8 +657,24 @@ func (m Model) getFooterHints() string {
 
 // renderStatusBar renders the status bar area between columns and footer
 func (m Model) renderStatusBar() string {
+	var parts []string
+
+	// Show pagination info for active collection column
+	if m.activeColumn < len(m.columns) {
+		col := m.columns[m.activeColumn]
+		if !col.isDoc && col.docCount > 0 {
+			info := fmt.Sprintf("%d docs | limit: %d", col.docCount, m.pageLimit)
+			parts = append(parts, info)
+		}
+	}
+
+	// Show active filter
 	if m.filterActive && m.filterPattern != "" {
-		return statusBarStyle.Render("Filter: " + m.filterPattern)
+		parts = append(parts, "Filter: "+m.filterPattern)
+	}
+
+	if len(parts) > 0 {
+		return statusBarStyle.Render(strings.Join(parts, "  "))
 	}
 	return statusBarStyle.Render("")
 }

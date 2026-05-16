@@ -92,6 +92,26 @@ func createNode(key string, value interface{}, depth int) ListItem {
 	return item
 }
 
+type fetchOpts struct {
+	limit       int
+	offset      int
+	appendItems bool
+}
+
+type fetchOption func(*fetchOpts)
+
+func withLimit(n int) fetchOption {
+	return func(o *fetchOpts) { o.limit = n }
+}
+
+func withOffset(n int) fetchOption {
+	return func(o *fetchOpts) { o.offset = n }
+}
+
+func withAppend() fetchOption {
+	return func(o *fetchOpts) { o.appendItems = true }
+}
+
 func deleteDocument(client *firestore.Client, path string, fromDocView bool) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -105,15 +125,20 @@ func deleteDocument(client *firestore.Client, path string, fromDocView bool) tea
 }
 
 // fetchColumnData fetches data for a specific column based on path and type
-func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int, sortField string, sortDirection firestore.Direction) tea.Cmd {
+func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int, sortField string, sortDirection firestore.Direction, opts ...fetchOption) tea.Cmd {
+	var fo fetchOpts
+	for _, o := range opts {
+		o(&fo)
+	}
 	return func() tea.Msg {
-		logDebug("fetchColumnData started: path='%s', isDoc=%v, columnIndex=%d, sortField='%s'", path, isDoc, columnIndex, sortField)
+		logDebug("fetchColumnData started: path='%s', isDoc=%v, columnIndex=%d, sortField='%s', limit=%d, offset=%d", path, isDoc, columnIndex, sortField, fo.limit, fo.offset)
 		ctx := context.Background()
 		sections := []Section{}
 		docContent := ""
 		var docData map[string]interface{}
 		docMetadata := map[string]string{}
 		availableFields := []string{}
+		hasMore := false
 
 		if path == "" {
 			// Root: fetch root collections
@@ -150,9 +175,18 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 				query = query.OrderBy(sortField, sortDirection)
 			}
 
+			// Apply pagination limit
+			if fo.limit > 0 {
+				query = query.Limit(fo.limit + 1) // Fetch one extra to detect hasMore
+				if fo.offset > 0 {
+					query = query.Offset(fo.offset)
+				}
+			}
+
 			iter := query.Documents(ctx)
 			var items []ListItem
 			firstDoc := true
+			fetchCount := 0
 			for {
 				doc, err := iter.Next()
 				if err == iterator.Done {
@@ -162,6 +196,13 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					return errorMsg{err: err}
 				}
 
+				fetchCount++
+				// If we got more than limit, we have more pages
+				if fo.limit > 0 && fetchCount > fo.limit {
+					hasMore = true
+					break
+				}
+
 				// Extract field names from first document
 				if firstDoc {
 					firstDoc = false
@@ -169,7 +210,6 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					for key := range data {
 						availableFields = append(availableFields, key)
 					}
-					// Sort field names for consistent order
 					sort.Strings(availableFields)
 				}
 
@@ -177,7 +217,6 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 				if !doc.CreateTime.IsZero() {
 					metadata["created"] = doc.CreateTime.Local().Format("2006-01-02 15:04:05")
 				}
-				// Build relative path: parent_path/doc_id
 				docPath := path + "/" + doc.Ref.ID
 				items = append(items, ListItem{
 					id:       doc.Ref.ID,
@@ -186,29 +225,41 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					metadata: metadata,
 				})
 			}
-			seen := make(map[string]bool, len(items))
-			for _, item := range items {
-				seen[item.id] = true
+
+			// Only fetch document refs for missing docs on first page
+			if fo.offset == 0 {
+				seen := make(map[string]bool, len(items))
+				for _, item := range items {
+					seen[item.id] = true
+				}
+
+				refsIter := colRef.DocumentRefs(ctx)
+				for {
+					ref, err := refsIter.Next()
+					if err == iterator.Done {
+						break
+					}
+					if err != nil {
+						return errorMsg{err: err}
+					}
+					if seen[ref.ID] {
+						continue
+					}
+					docPath := path + "/" + ref.ID
+					items = append(items, ListItem{
+						id:        ref.ID,
+						path:      docPath,
+						isDoc:     true,
+						isMissing: true,
+					})
+				}
 			}
 
-			refsIter := colRef.DocumentRefs(ctx)
-			for {
-				ref, err := refsIter.Next()
-				if err == iterator.Done {
-					break
-				}
-				if err != nil {
-					return errorMsg{err: err}
-				}
-				if seen[ref.ID] {
-					continue
-				}
-				docPath := path + "/" + ref.ID
+			// Add "Load more..." sentinel if there are more pages
+			if hasMore {
 				items = append(items, ListItem{
-					id:        ref.ID,
-					path:      docPath,
-					isDoc:     true,
-					isMissing: true,
+					id:   "Load more...",
+					path: "__load_more__",
 				})
 			}
 
@@ -312,6 +363,18 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			}
 		}
 
+		// Count documents in sections
+		totalDocs := 0
+		for _, s := range sections {
+			if s.title == "Documents" {
+				for _, item := range s.items {
+					if item.path != "__load_more__" {
+						totalDocs++
+					}
+				}
+			}
+		}
+
 		result := fetchedColumnMsg{
 			columnIndex:     columnIndex,
 			sections:        sections,
@@ -319,6 +382,9 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			docData:         docData,
 			docMetadata:     docMetadata,
 			availableFields: availableFields,
+			hasMore:         hasMore,
+			docCount:        totalDocs,
+			appendItems:     fo.appendItems,
 		}
 		logDebug("fetchColumnData completed: columnIndex=%d, sections=%d, docContentLen=%d, docData keys=%d",
 			columnIndex, len(sections), len(docContent), len(docData))

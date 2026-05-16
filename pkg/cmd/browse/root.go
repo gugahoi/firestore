@@ -113,6 +113,7 @@ Examples:
 				commandRegistry: initCommandRegistry(),
 				commandInput:    ci,
 				filterInput:     fi,
+				pageLimit:       50,
 			}
 
 			// Run TUI

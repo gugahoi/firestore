@@ -1,6 +1,7 @@
 package browse
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -262,6 +263,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, handleEditorFinished(msg.session)
 
+	case previewDebounceMsg:
+		if !m.previewEnabled || msg.path != m.previewPending {
+			return m, nil
+		}
+		if msg.path == m.previewPath {
+			return m, nil
+		}
+		return m, fetchPreviewData(m.client, msg.path)
+
+	case previewFetchedMsg:
+		if !m.previewEnabled {
+			return m, nil
+		}
+		m.previewPath = msg.path
+		m.previewData = msg.data
+		if msg.data != nil {
+			m.previewNodes = buildTreeNodes(msg.data)
+		} else {
+			m.previewNodes = nil
+		}
+		return m, nil
+
 	case bulkDeletedMsg:
 		m.loading = false
 		m.statusMsg = fmt.Sprintf("%d documents deleted", msg.count)
@@ -371,11 +394,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Vertical navigation (within column)
 	case "j", "down":
 		m.moveCursor(1)
-		return m, nil
+		return m, m.schedulePreviewFetch()
 
 	case "k", "up":
 		m.moveCursor(-1)
-		return m, nil
+		return m, m.schedulePreviewFetch()
 
 	case "g":
 		m.jumpToTop()
@@ -495,6 +518,18 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, "", 0, withLimit(m.pageLimit)),
 			clearStatusAfterDelay(),
 		)
+
+	case "p":
+		m.previewEnabled = !m.previewEnabled
+		if !m.previewEnabled {
+			m.previewPath = ""
+			m.previewData = nil
+			m.previewNodes = nil
+			m.previewPending = ""
+		} else {
+			return m, m.schedulePreviewFetch()
+		}
+		return m, nil
 
 	case "e":
 		// Edit document
@@ -917,6 +952,37 @@ func (m Model) handleVisualMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) schedulePreviewFetch() tea.Cmd {
+	if !m.previewEnabled {
+		return nil
+	}
+	item := m.getSelectedItem()
+	if item == nil || !item.isDoc || item.path == "__load_more__" {
+		m.previewPending = ""
+		return nil
+	}
+	m.previewPending = item.path
+	path := item.path
+	return tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+		return previewDebounceMsg{path: path}
+	})
+}
+
+func fetchPreviewData(client *firestore.Client, path string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		docRef := client.Doc(strings.TrimPrefix(path, "/"))
+		snap, err := docRef.Get(ctx)
+		if err != nil {
+			return previewFetchedMsg{path: path, data: nil}
+		}
+		if !snap.Exists() {
+			return previewFetchedMsg{path: path, data: nil}
+		}
+		return previewFetchedMsg{path: path, data: snap.Data()}
+	}
 }
 
 func longestCommonPrefix(strs []string) string {

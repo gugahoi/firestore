@@ -89,6 +89,13 @@ type Model struct {
 	// Jumplist
 	jumplist *Jumplist
 
+	// Preview pane
+	previewEnabled bool
+	previewPath    string
+	previewData    map[string]interface{}
+	previewNodes   []ListItem
+	previewPending string // path of pending debounced fetch
+
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
@@ -184,6 +191,15 @@ type documentUpdatedMsg struct {
 type documentDeletedMsg struct {
 	path        string
 	fromDocView bool // true if delete was initiated from a document column
+}
+
+type previewDebounceMsg struct {
+	path string
+}
+
+type previewFetchedMsg struct {
+	path string
+	data map[string]interface{}
 }
 
 // getSortParams returns the saved sort field and direction for a given path

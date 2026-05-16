@@ -160,4 +160,10 @@ var (
 				Bold(true).
 				Foreground(lipgloss.Color("0")).
 				Background(colorYellow)
+
+	// Preview pane style
+	previewStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorGreen).
+			Padding(0, 1)
 )

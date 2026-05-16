@@ -79,9 +79,13 @@ type Model struct {
 	// Pagination
 	pageLimit int
 
+	// Visual mode selection
+	selection *Selection
+
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
+	bulkDeletePaths   []string // Paths for bulk delete in visual mode
 
 	// Filter
 	filterInput   textinput.Model

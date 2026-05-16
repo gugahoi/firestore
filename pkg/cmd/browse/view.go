@@ -245,17 +245,30 @@ func (m Model) renderColumns() string {
 	}
 
 	visibleCols := getVisibleColumns(m.columns, m.activeColumn)
-	colWidth := calculateColumnWidth(m.width, len(visibleCols))
-	logDebug("renderColumns: visibleCols=%d, colWidth=%d", len(visibleCols), colWidth)
+
+	// Calculate column width, reserving space for preview if enabled
+	previewWidth := 0
+	totalWidth := m.width
+	if m.previewEnabled && len(m.previewNodes) > 0 {
+		previewWidth = totalWidth / 3
+		totalWidth -= previewWidth
+	}
+	colWidth := calculateColumnWidth(totalWidth, len(visibleCols))
+	logDebug("renderColumns: visibleCols=%d, colWidth=%d, previewWidth=%d", len(visibleCols), colWidth, previewWidth)
 
 	var renderedCols []string
 	for i, col := range visibleCols {
-		// Determine if this is the active column
 		isActive := (i == m.activeColumn) || (len(m.columns) > 4 && i == 3)
 
 		rendered := m.renderColumn(col, colWidth, isActive)
 		logDebug("renderColumns: column %d rendered, length=%d", i, len(rendered))
 		renderedCols = append(renderedCols, rendered)
+	}
+
+	// Add preview pane if enabled
+	if m.previewEnabled && previewWidth > 0 && len(m.previewNodes) > 0 {
+		previewCol := m.renderPreviewPane(previewWidth)
+		renderedCols = append(renderedCols, previewCol)
 	}
 
 	logDebug("renderColumns: about to JoinHorizontal with %d columns", len(renderedCols))
@@ -645,6 +658,38 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	return result
 }
 
+func (m Model) renderPreviewPane(width int) string {
+	height := m.height - 5 - 2
+	if height < 1 {
+		height = 10
+	}
+
+	innerWidth := max(width-4, 1)
+	var content strings.Builder
+
+	// Title
+	parts := strings.Split(m.previewPath, "/")
+	title := m.previewPath
+	if len(parts) > 0 {
+		title = parts[len(parts)-1]
+	}
+	content.WriteString(sectionHeaderStyle.Render("Preview: " + title))
+	content.WriteString("\n")
+
+	wrapper := lipgloss.NewStyle().Width(innerWidth)
+	itemIndex := 0
+	m.renderTreeNodes(m.previewNodes, 0, -1, &itemIndex, &content, wrapper, innerWidth)
+
+	columnContent := content.String()
+	lines := strings.Split(columnContent, "\n")
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	columnContent = strings.Join(lines, "\n")
+
+	return previewStyle.Width(width).Height(height).Render(columnContent)
+}
+
 // getFooterHints returns context-sensitive keybinding hints
 func (m Model) getFooterHints() string {
 	if m.overlay == OverlaySortDialog {
@@ -689,6 +734,11 @@ func (m Model) renderStatusBar() string {
 	// Show active filter
 	if m.filterActive && m.filterPattern != "" {
 		parts = append(parts, "Filter: "+m.filterPattern)
+	}
+
+	// Show preview mode
+	if m.previewEnabled {
+		parts = append(parts, "Preview: ON")
 	}
 
 	if len(parts) > 0 {

@@ -51,9 +51,10 @@ func (m *Model) getSelectedItem() *ListItem {
 	}
 
 	col := &m.columns[m.activeColumn]
+	sections := m.getEffectiveSections(*col)
 	itemIndex := 0
 
-	for _, section := range col.sections {
+	for _, section := range sections {
 		if section.hidden {
 			continue
 		}
@@ -87,11 +88,11 @@ func (m *Model) getSelectedItem() *ListItem {
 	return nil
 }
 
-// getAllItems returns all visible items from a column (flattened from sections)
-// Updated to handle tree expansion
-func getAllItemsCount(col Column) int {
+// getAllItemsCount returns count of visible items in a column (with filter applied)
+func (m *Model) getAllItemsCount(col Column) int {
+	sections := m.getEffectiveSections(col)
 	count := 0
-	for _, section := range col.sections {
+	for _, section := range sections {
 		if section.hidden {
 			continue
 		}
@@ -114,7 +115,7 @@ func (m *Model) moveCursor(delta int) {
 	}
 
 	col := &m.columns[m.activeColumn]
-	totalItems := getAllItemsCount(*col)
+	totalItems := m.getAllItemsCount(*col)
 	if totalItems == 0 {
 		return
 	}
@@ -161,7 +162,8 @@ func (m *Model) autoScroll() {
 	itemIndex := 0
 	foundCursor := false
 
-	for _, section := range col.sections {
+	sections := m.getEffectiveSections(*col)
+	for _, section := range sections {
 		if section.hidden {
 			continue
 		}
@@ -281,7 +283,7 @@ func (m *Model) jumpToBottom() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	count := getAllItemsCount(*col)
+	count := m.getAllItemsCount(*col)
 	if count > 0 {
 		col.cursor = count - 1
 		m.autoScroll() // Scroll to show bottom item

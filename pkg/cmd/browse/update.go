@@ -33,6 +33,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}
+			// Enter filter mode
+			if msg.String() == "/" {
+				m.overlay = OverlayFilter
+				m.filterInput.Reset()
+				m.filterInput.Focus()
+				return m, textinput.Blink
+			}
 			// Enter command mode
 			if msg.String() == ":" {
 				m.mode = ModeCommand
@@ -518,6 +525,40 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, nil
+
+	case OverlayFilter:
+		switch msg.String() {
+		case "esc":
+			m.overlay = OverlayNone
+			m.filterInput.Blur()
+			m.filterInput.Reset()
+			m.filterActive = false
+			m.filterPattern = ""
+			if m.activeColumn < len(m.columns) {
+				m.columns[m.activeColumn].cursor = 0
+				m.columns[m.activeColumn].scrollOffset = 0
+			}
+			return m, nil
+		case "enter":
+			m.overlay = OverlayNone
+			m.filterInput.Blur()
+			pattern := m.filterInput.Value()
+			if pattern != "" {
+				m.filterActive = true
+				m.filterPattern = pattern
+			} else {
+				m.filterActive = false
+				m.filterPattern = ""
+			}
+			return m, nil
+		}
+		m.filterInput, cmd = m.filterInput.Update(msg)
+		m.filterPattern = m.filterInput.Value()
+		if m.activeColumn < len(m.columns) {
+			m.columns[m.activeColumn].cursor = 0
+			m.columns[m.activeColumn].scrollOffset = 0
+		}
+		return m, cmd
 	}
 
 	return m, nil

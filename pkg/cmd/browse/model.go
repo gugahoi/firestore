@@ -27,6 +27,7 @@ const (
 	OverlayPathInput
 	OverlaySortDialog
 	OverlayDeleteConfirm
+	OverlayFilter
 )
 
 func (m Mode) String() string {
@@ -78,6 +79,11 @@ type Model struct {
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
+
+	// Filter
+	filterInput   textinput.Model
+	filterActive  bool
+	filterPattern string
 }
 
 // sortStateEntry stores sort configuration for a collection path

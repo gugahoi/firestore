@@ -89,6 +89,13 @@ Examples:
 			ci.Width = 50
 			ci.Prompt = ":"
 
+			// Initialize filter input
+			fi := textinput.New()
+			fi.Placeholder = ""
+			fi.CharLimit = 100
+			fi.Width = 50
+			fi.Prompt = "/"
+
 			// Initialize model
 			m := Model{
 				client:          client,
@@ -105,6 +112,7 @@ Examples:
 				mode:            ModeNormal,
 				commandRegistry: initCommandRegistry(),
 				commandInput:    ci,
+				filterInput:     fi,
 			}
 
 			// Run TUI

@@ -56,7 +56,7 @@ func (m Model) View() string {
 	headerGap := strings.Repeat(" ", max(m.width-lipgloss.Width(headerLeft)-lipgloss.Width(headerPath)-lipgloss.Width(headerRight)-2, 1))
 	header := headerLeft + " " + headerPath + headerGap + headerRight
 
-	// Footer: context-sensitive hints or command prompt
+	// Footer: context-sensitive hints, command prompt, or filter input
 	var footer string
 	if m.mode == ModeCommand {
 		commandLine := m.commandInput.View()
@@ -68,6 +68,8 @@ func (m Model) View() string {
 		} else {
 			footer = commandLine
 		}
+	} else if m.overlay == OverlayFilter {
+		footer = m.filterInput.View()
 	} else {
 		footer = footerStyle.Render(m.getFooterHints())
 	}
@@ -388,13 +390,16 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	// Width - Border(2) - Padding(2) = Width - 4
 	innerWidth := max(width-4, 1)
 
+	// Apply filter to sections for active column
+	sections := m.getEffectiveSections(col)
+
 	logDebug(
 		"renderColumn: width=%d, innerWidth=%d, height=%d, isActive=%v, sections=%d",
 		width,
 		innerWidth,
 		height,
 		isActive,
-		len(col.sections),
+		len(sections),
 	)
 
 	var content strings.Builder
@@ -405,7 +410,7 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	wrapper := lipgloss.NewStyle().Width(innerWidth)
 
 	// Render sections
-	for _, section := range col.sections {
+	for _, section := range sections {
 		if section.hidden {
 			continue
 		}
@@ -483,7 +488,7 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	// If this is a document column, render document content (RAW JSON fallback/debug)
 	// We only show this if we DON'T have a Data section (which we should always have now)
 	hasDataSection := false
-	for _, s := range col.sections {
+	for _, s := range sections {
 		if s.title == "Data" {
 			hasDataSection = true
 			break
@@ -636,6 +641,9 @@ func (m Model) getFooterHints() string {
 	if m.overlay == OverlayPathInput {
 		return "Enter: Navigate  Esc: Cancel"
 	}
+	if m.overlay == OverlayFilter {
+		return "Enter: Confirm filter  Esc: Clear and cancel"
+	}
 
 	switch m.mode {
 	case ModeVisual:
@@ -643,11 +651,14 @@ func (m Model) getFooterHints() string {
 	case ModeCommand:
 		return "Esc: Normal mode"
 	default:
-		return "j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  e: Edit  d: Delete  yy: Copy  Y: Copy ID  r: Refresh  Ctrl+g: Goto  q: Quit"
+		return "j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  /: Filter  s: Sort  e: Edit  d: Delete  yy: Copy  :: Command  q: Quit"
 	}
 }
 
 // renderStatusBar renders the status bar area between columns and footer
 func (m Model) renderStatusBar() string {
+	if m.filterActive && m.filterPattern != "" {
+		return statusBarStyle.Render("Filter: " + m.filterPattern)
+	}
 	return statusBarStyle.Render("")
 }

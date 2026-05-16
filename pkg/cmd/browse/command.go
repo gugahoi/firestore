@@ -117,6 +117,13 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdSet,
 	})
 
+	r.Register(Command{
+		Name:        "export",
+		Description: "Export documents as JSON or NDJSON",
+		Usage:       ":export json|ndjson [file]",
+		Handler:     cmdExport,
+	})
+
 	return r
 }
 

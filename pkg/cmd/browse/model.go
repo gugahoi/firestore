@@ -10,15 +10,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// InputMode indicates whether the user is typing a path
-type InputMode int
+// Mode represents the primary vim-style mode
+type Mode int
 
 const (
-	ModeNormal InputMode = iota
-	ModePathInput
-	ModeSortDialog
-	ModeDeleteConfirm
+	ModeNormal  Mode = iota
+	ModeVisual
+	ModeCommand
 )
+
+// Overlay represents a dialog/overlay on top of the current mode
+type Overlay int
+
+const (
+	OverlayNone Overlay = iota
+	OverlayPathInput
+	OverlaySortDialog
+	OverlayDeleteConfirm
+)
+
+func (m Mode) String() string {
+	switch m {
+	case ModeNormal:
+		return "NORMAL"
+	case ModeVisual:
+		return "VISUAL"
+	case ModeCommand:
+		return "COMMAND"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 // Model represents the entire TUI state
 type Model struct {
@@ -32,8 +54,9 @@ type Model struct {
 	loading      bool
 	err          error
 
-	// Path input
-	mode      InputMode
+	// Mode system
+	mode    Mode
+	overlay Overlay
 	textInput textinput.Model
 
 	// Sort dialog

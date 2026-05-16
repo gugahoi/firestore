@@ -89,6 +89,9 @@ type Model struct {
 	// Jumplist
 	jumplist *Jumplist
 
+	// Tree fold
+	pendingZKey bool
+
 	// Preview pane
 	previewEnabled bool
 	previewPath    string

@@ -82,20 +82,29 @@ Examples:
 			ti.CharLimit = 150
 			ti.Width = 50
 
+			// Initialize command input
+			ci := textinput.New()
+			ci.Placeholder = ""
+			ci.CharLimit = 200
+			ci.Width = 50
+			ci.Prompt = ":"
+
 			// Initialize model
 			m := Model{
-				client:       client,
-				ctx:          ctx,
-				projectID:    projectID,
-				columns:      []Column{{path: startPath, isDoc: isDoc}},
-				activeColumn: 0,
-				width:        0,
-				height:       0,
-				loading:      true,
-				err:          nil,
-				textInput:    ti,
-				sortState:    make(map[string]sortStateEntry),
-				mode:         ModeNormal,
+				client:          client,
+				ctx:             ctx,
+				projectID:       projectID,
+				columns:         []Column{{path: startPath, isDoc: isDoc}},
+				activeColumn:    0,
+				width:           0,
+				height:          0,
+				loading:         true,
+				err:             nil,
+				textInput:       ti,
+				sortState:       make(map[string]sortStateEntry),
+				mode:            ModeNormal,
+				commandRegistry: initCommandRegistry(),
+				commandInput:    ci,
 			}
 
 			// Run TUI

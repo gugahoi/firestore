@@ -39,6 +39,7 @@ Sorting (collections only):
 
 Editing:
   e                    Edit document in $EDITOR
+  d                    Delete document (with confirmation)
 
 Clipboard:
   yy                   Copy selected value

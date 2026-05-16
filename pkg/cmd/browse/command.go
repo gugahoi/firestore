@@ -131,6 +131,13 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdMarks,
 	})
 
+	r.Register(Command{
+		Name:        "query",
+		Description: "Filter collection with a Firestore query",
+		Usage:       ":query <field> <op> <value>",
+		Handler:     cmdQuery,
+	})
+
 	return r
 }
 
@@ -180,6 +187,7 @@ func cmdRefresh(m *Model, args []string) (string, error) {
 	}
 
 	col := m.columns[m.activeColumn]
+	m.columns[m.activeColumn].activeQuery = nil
 	m.loading = true
 
 	sortField, sortDir := m.getSortParams(col.path)
@@ -228,6 +236,34 @@ func cmdSort(m *Model, args []string) (string, error) {
 		dirStr = "Descending"
 	}
 	return fmt.Sprintf("Sorted by %s (%s)", field, dirStr), nil
+}
+
+func cmdQuery(m *Model, args []string) (string, error) {
+	if m.activeColumn >= len(m.columns) {
+		return "", fmt.Errorf("no active column")
+	}
+
+	col := m.columns[m.activeColumn]
+	if col.isDoc {
+		return "", fmt.Errorf("can only query collections, not documents")
+	}
+
+	q, err := ParseQueryArgs(args)
+	if err != nil {
+		return "", err
+	}
+
+	m.columns[m.activeColumn].activeQuery = &q
+	m.loading = true
+
+	sortField, sortDir := m.getSortParams(col.path)
+	m.pendingFetch = &pendingFetchCmd{
+		path: col.path, isDoc: col.isDoc, colIndex: m.activeColumn,
+		sortField: sortField, sortDir: sortDir,
+		opts: []fetchOption{withLimit(m.pageLimit), withQuery(&q)},
+	}
+
+	return fmt.Sprintf("Query: %s", q.String()), nil
 }
 
 func cmdMarks(m *Model, args []string) (string, error) {

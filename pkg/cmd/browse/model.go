@@ -65,6 +65,7 @@ type Model struct {
 	commandInput    textinput.Model
 	commandResult   string
 	pendingFetch    *pendingFetchCmd
+	pendingEditor   tea.Cmd
 
 	// Sort dialog
 	sortDialog sortDialogModel
@@ -194,6 +195,12 @@ type documentUpdatedMsg struct {
 type documentDeletedMsg struct {
 	path        string
 	fromDocView bool // true if delete was initiated from a document column
+}
+
+type documentCreatedMsg struct {
+	colPath  string
+	docID    string
+	colIndex int
 }
 
 type previewDebounceMsg struct {

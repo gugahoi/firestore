@@ -138,6 +138,13 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdQuery,
 	})
 
+	r.Register(Command{
+		Name:        "add",
+		Description: "Create a new document in the current collection",
+		Usage:       ":add [id]",
+		Handler:     cmdAdd,
+	})
+
 	return r
 }
 
@@ -236,6 +243,25 @@ func cmdSort(m *Model, args []string) (string, error) {
 		dirStr = "Descending"
 	}
 	return fmt.Sprintf("Sorted by %s (%s)", field, dirStr), nil
+}
+
+func cmdAdd(m *Model, args []string) (string, error) {
+	if m.activeColumn >= len(m.columns) {
+		return "", fmt.Errorf("no active column")
+	}
+
+	col := m.columns[m.activeColumn]
+	if col.isDoc {
+		return "", fmt.Errorf("can only add documents to collections")
+	}
+
+	docID := ""
+	if len(args) > 0 {
+		docID = args[0]
+	}
+
+	m.pendingEditor = startAddCmd(m.client, col.path, docID, col.availableFields, m.activeColumn)
+	return "", nil
 }
 
 func cmdQuery(m *Model, args []string) (string, error) {

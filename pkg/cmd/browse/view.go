@@ -432,8 +432,18 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 				}
 
 				line := fmt.Sprintf("%s%s", prefix, displayID)
+				if item.isMissing {
+					line = fmt.Sprintf("%s%s", prefix, missingDocStyle.Render(displayID+" (no data)"))
+				}
 				if itemIndex == col.cursor {
-					line = selectedItemStyle.Render(line)
+					line = selectedItemStyle.Render(
+						fmt.Sprintf("%s%s", prefix, displayID),
+					)
+					if item.isMissing {
+						line = selectedItemStyle.Render(
+							fmt.Sprintf("%s%s (no data)", prefix, displayID),
+						)
+					}
 				}
 
 				content.WriteString(line)

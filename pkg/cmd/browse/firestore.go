@@ -11,6 +11,8 @@ import (
 	"cloud.google.com/go/firestore"
 	tea "github.com/charmbracelet/bubbletea"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Helper to build tree nodes from map
@@ -172,6 +174,32 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					metadata: metadata,
 				})
 			}
+			seen := make(map[string]bool, len(items))
+			for _, item := range items {
+				seen[item.id] = true
+			}
+
+			refsIter := colRef.DocumentRefs(ctx)
+			for {
+				ref, err := refsIter.Next()
+				if err == iterator.Done {
+					break
+				}
+				if err != nil {
+					return errorMsg{err: err}
+				}
+				if seen[ref.ID] {
+					continue
+				}
+				docPath := path + "/" + ref.ID
+				items = append(items, ListItem{
+					id:        ref.ID,
+					path:      docPath,
+					isDoc:     true,
+					isMissing: true,
+				})
+			}
+
 			sections = append(sections, Section{
 				title:  "Documents",
 				items:  items,
@@ -211,41 +239,43 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 
 			// Fetch document data
 			snap, err := docRef.Get(ctx)
-			if err != nil {
+			if err != nil && status.Code(err) != codes.NotFound {
 				return errorMsg{err: err}
 			}
 
-			// Extract metadata
-			docMetadata = map[string]string{}
-			if !snap.CreateTime.IsZero() {
-				docMetadata["Created"] = snap.CreateTime.Local().Format("2006-01-02 15:04:05")
-			}
-			if !snap.UpdateTime.IsZero() {
-				docMetadata["Updated"] = snap.UpdateTime.Local().Format("2006-01-02 15:04:05")
-			}
-			if !snap.ReadTime.IsZero() {
-				docMetadata["Read"] = snap.ReadTime.Local().Format("2006-01-02 15:04:05")
-			}
+			if snap != nil && snap.Exists() {
+				// Extract metadata
+				docMetadata = map[string]string{}
+				if !snap.CreateTime.IsZero() {
+					docMetadata["Created"] = snap.CreateTime.Local().Format("2006-01-02 15:04:05")
+				}
+				if !snap.UpdateTime.IsZero() {
+					docMetadata["Updated"] = snap.UpdateTime.Local().Format("2006-01-02 15:04:05")
+				}
+				if !snap.ReadTime.IsZero() {
+					docMetadata["Read"] = snap.ReadTime.Local().Format("2006-01-02 15:04:05")
+				}
 
-			// Format as JSON
-			docData = snap.Data()
-			var buf bytes.Buffer
-			encoder := json.NewEncoder(&buf)
-			encoder.SetEscapeHTML(false)
-			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(docData); err != nil {
-				return errorMsg{err: err}
-			}
-			docContent = buf.String()
+				// Format as JSON
+				docData = snap.Data()
+				var buf bytes.Buffer
+				encoder := json.NewEncoder(&buf)
+				encoder.SetEscapeHTML(false)
+				encoder.SetIndent("", "  ")
+				if err := encoder.Encode(docData); err != nil {
+					return errorMsg{err: err}
+				}
+				docContent = buf.String()
 
-			// Build tree nodes for structured view
-			rootNodes := buildTreeNodes(docData)
-			if len(rootNodes) > 0 {
-				sections = append(sections, Section{
-					title:  "Data",
-					items:  rootNodes,
-					hidden: false,
-				})
+				// Build tree nodes for structured view
+				rootNodes := buildTreeNodes(docData)
+				if len(rootNodes) > 0 {
+					sections = append(sections, Section{
+						title:  "Data",
+						items:  rootNodes,
+						hidden: false,
+					})
+				}
 			}
 
 			// Create Metadata section

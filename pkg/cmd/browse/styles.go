@@ -57,6 +57,11 @@ var (
 	docIndicatorStyle = lipgloss.NewStyle().
 				Foreground(colorGreen)
 
+	// Missing document style (documents with no data, only subcollections)
+	missingDocStyle = lipgloss.NewStyle().
+			Foreground(colorGray).
+			Faint(true)
+
 	// Collection indicator style
 	colIndicatorStyle = lipgloss.NewStyle().
 				Foreground(colorBlue)

@@ -59,6 +59,12 @@ type Model struct {
 	overlay Overlay
 	textInput textinput.Model
 
+	// Command mode
+	commandRegistry *CommandRegistry
+	commandInput    textinput.Model
+	commandResult   string
+	pendingFetch    *pendingFetchCmd
+
 	// Sort dialog
 	sortDialog sortDialogModel
 	sortState  map[string]sortStateEntry // Path -> sort state

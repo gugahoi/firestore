@@ -33,6 +33,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}
+			// Enter command mode
+			if msg.String() == ":" {
+				m.mode = ModeCommand
+				m.commandInput.Reset()
+				m.commandInput.Focus()
+				m.commandResult = ""
+				return m, textinput.Blink
+			}
 			return m.handleKeyPress(msg)
 
 		case ModeVisual:
@@ -43,11 +51,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case ModeCommand:
-			if msg.String() == "esc" {
-				m.mode = ModeNormal
-				return m, nil
-			}
-			return m, nil
+			return m.handleCommandMode(msg)
 		}
 
 	case tea.WindowSizeMsg:
@@ -558,4 +562,95 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 		fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, field, m.sortDialog.direction),
 		clearStatusAfterDelay(),
 	)
+}
+
+// handleCommandMode processes input in command mode
+func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = ModeNormal
+		m.commandInput.Blur()
+		m.commandInput.Reset()
+		m.commandResult = ""
+		return m, nil
+
+	case "enter":
+		input := m.commandInput.Value()
+		m.mode = ModeNormal
+		m.commandInput.Blur()
+		m.commandInput.Reset()
+
+		name, args := ParseCommand(input)
+		if name == "" {
+			return m, nil
+		}
+
+		cmd, ok := m.commandRegistry.Get(name)
+		if !ok {
+			m.statusMsg = fmt.Sprintf("Unknown command: %s", name)
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		statusText, err := cmd.Handler(&m, args)
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %s", err)
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		if statusText != "" {
+			m.statusMsg = statusText
+			m.statusMsgTime = time.Now()
+		}
+
+		// Check if the handler set a pending fetch
+		if m.pendingFetch != nil {
+			pf := m.pendingFetch
+			m.pendingFetch = nil
+			return m, tea.Batch(
+				fetchColumnData(m.client, pf.path, pf.isDoc, pf.colIndex, pf.sortField, pf.sortDir),
+				clearStatusAfterDelay(),
+			)
+		}
+
+		return m, clearStatusAfterDelay()
+
+	case "tab":
+		// Tab completion
+		input := m.commandInput.Value()
+		name, _ := ParseCommand(input)
+		matches := m.commandRegistry.Complete(name)
+		if len(matches) == 1 {
+			m.commandInput.SetValue(matches[0] + " ")
+			m.commandInput.CursorEnd()
+		} else if len(matches) > 1 {
+			// Find common prefix
+			prefix := longestCommonPrefix(matches)
+			if len(prefix) > len(name) {
+				m.commandInput.SetValue(prefix)
+				m.commandInput.CursorEnd()
+			}
+			m.commandResult = strings.Join(matches, "  ")
+		}
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.commandInput, cmd = m.commandInput.Update(msg)
+	m.commandResult = ""
+	return m, cmd
+}
+
+func longestCommonPrefix(strs []string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	prefix := strs[0]
+	for _, s := range strs[1:] {
+		for len(prefix) > 0 && !strings.HasPrefix(s, prefix) {
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	return prefix
 }

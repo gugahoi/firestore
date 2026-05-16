@@ -56,8 +56,21 @@ func (m Model) View() string {
 	headerGap := strings.Repeat(" ", max(m.width-lipgloss.Width(headerLeft)-lipgloss.Width(headerPath)-lipgloss.Width(headerRight)-2, 1))
 	header := headerLeft + " " + headerPath + headerGap + headerRight
 
-	// Footer: context-sensitive hints based on mode/overlay
-	footer := footerStyle.Render(m.getFooterHints())
+	// Footer: context-sensitive hints or command prompt
+	var footer string
+	if m.mode == ModeCommand {
+		commandLine := m.commandInput.View()
+		if m.commandResult != "" {
+			footer = lipgloss.JoinVertical(lipgloss.Left,
+				footerStyle.Render(m.commandResult),
+				commandLine,
+			)
+		} else {
+			footer = commandLine
+		}
+	} else {
+		footer = footerStyle.Render(m.getFooterHints())
+	}
 
 	// Status bar (placeholder between columns and footer)
 	statusBar := m.renderStatusBar()

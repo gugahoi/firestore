@@ -101,6 +101,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		// Handle delete confirmation mode
+		if m.mode == ModeDeleteConfirm {
+			switch msg.String() {
+			case "y", "enter":
+				path := m.deletePath
+				fromDocView := m.deleteFromDocView
+				m.deletePath = ""
+				m.deleteFromDocView = false
+				m.mode = ModeNormal
+				m.loading = true
+				return m, deleteDocument(m.client, path, fromDocView)
+			case "n", "esc", "q":
+				m.deletePath = ""
+				m.deleteFromDocView = false
+				m.mode = ModeNormal
+				return m, nil
+			}
+			return m, nil
+		}
+
 		// Handle normal mode global keys
 		if msg.String() == "ctrl+g" {
 			m.mode = ModePathInput
@@ -229,6 +249,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsgTime = time.Now()
 		m.loading = false
 
+		return m, clearStatusAfterDelay()
+
+	case documentDeletedMsg:
+		m.loading = false
+
+		if msg.fromDocView {
+			// Delete was from a document column — go back to parent collection
+			m.removeLastColumn()
+		}
+
+		// Refresh the now-active column (the parent collection)
+		if m.activeColumn < len(m.columns) {
+			col := m.columns[m.activeColumn]
+			sortField, sortDir := m.getSortParams(col.path)
+
+			m.statusMsg = "Document deleted"
+			m.statusMsgTime = time.Now()
+			m.loading = true
+
+			return m, tea.Batch(
+				fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir),
+				clearStatusAfterDelay(),
+			)
+		}
+
+		m.statusMsg = "Document deleted"
+		m.statusMsgTime = time.Now()
 		return m, clearStatusAfterDelay()
 
 	case launchEditorMsg:
@@ -432,6 +479,32 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			sortField, sortDir := m.getSortParams(col.path)
 			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir)
 		}
+		return m, nil
+
+	case "d":
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		var docPath string
+
+		if col.isDoc {
+			docPath = col.path
+			m.deleteFromDocView = true
+		} else {
+			item := m.getSelectedItem()
+			if item == nil || !item.isDoc {
+				m.statusMsg = "Select a document to delete"
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+			docPath = item.path
+			m.deleteFromDocView = false
+		}
+
+		m.deletePath = docPath
+		m.mode = ModeDeleteConfirm
 		return m, nil
 	}
 

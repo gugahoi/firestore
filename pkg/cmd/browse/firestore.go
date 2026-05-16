@@ -92,6 +92,18 @@ func createNode(key string, value interface{}, depth int) ListItem {
 	return item
 }
 
+func deleteDocument(client *firestore.Client, path string, fromDocView bool) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		docRef := client.Doc(strings.TrimPrefix(path, "/"))
+		_, err := docRef.Delete(ctx)
+		if err != nil {
+			return errorMsg{err: fmt.Errorf("failed to delete document: %w", err)}
+		}
+		return documentDeletedMsg{path: path, fromDocView: fromDocView}
+	}
+}
+
 // fetchColumnData fetches data for a specific column based on path and type
 func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIndex int, sortField string, sortDirection firestore.Direction) tea.Cmd {
 	return func() tea.Msg {

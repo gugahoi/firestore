@@ -124,4 +124,10 @@ var (
 	sortHintStyle = lipgloss.NewStyle().
 			Foreground(colorGray).
 			Italic(true)
+
+	deleteDialogStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorRed).
+				Padding(1, 2).
+				Width(50)
 )

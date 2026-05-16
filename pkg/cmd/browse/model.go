@@ -17,6 +17,7 @@ const (
 	ModeNormal InputMode = iota
 	ModePathInput
 	ModeSortDialog
+	ModeDeleteConfirm
 )
 
 // Model represents the entire TUI state
@@ -44,6 +45,10 @@ type Model struct {
 	lastKeyTime   time.Time // Timestamp of last key press
 	statusMsg     string    // Status message to display
 	statusMsgTime time.Time // When status message was set
+
+	// Delete confirmation
+	deletePath        string // Path of document pending deletion
+	deleteFromDocView bool   // Whether delete was initiated from a document column
 }
 
 // sortStateEntry stores sort configuration for a collection path
@@ -114,6 +119,11 @@ type clearStatusMsg struct{}
 type documentUpdatedMsg struct {
 	path string
 	data map[string]interface{}
+}
+
+type documentDeletedMsg struct {
+	path        string
+	fromDocView bool // true if delete was initiated from a document column
 }
 
 // getSortParams returns the saved sort field and direction for a given path

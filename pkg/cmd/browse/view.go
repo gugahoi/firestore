@@ -51,7 +51,7 @@ func (m Model) View() string {
 
 	// Footer
 	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  S: Clear Sort  e: Edit  yy: Copy  Y: Copy ID  ya: Copy Doc  r: Refresh  q: Quit",
+		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  S: Clear Sort  e: Edit  d: Delete  yy: Copy  Y: Copy ID  ya: Copy Doc  r: Refresh  q: Quit",
 	)
 
 	// Error message
@@ -128,6 +128,33 @@ func (m Model) View() string {
 	// Render sort dialog if active
 	if m.mode == ModeSortDialog {
 		dialog := m.sortDialog.View()
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+		)
+	}
+
+	// Render delete confirmation dialog
+	if m.mode == ModeDeleteConfirm {
+		// Extract document ID from path for display
+		parts := strings.Split(m.deletePath, "/")
+		docID := m.deletePath
+		if len(parts) > 0 {
+			docID = parts[len(parts)-1]
+		}
+
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			errorStyle.Render("Delete document?"),
+			"",
+			docID,
+			"",
+			footerStyle.Render("y/Enter: confirm  n/Esc: cancel"),
+		)
+		dialog := deleteDialogStyle.Render(dialogContent)
 		return lipgloss.Place(
 			m.width,
 			m.height,

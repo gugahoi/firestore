@@ -124,6 +124,13 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdExport,
 	})
 
+	r.Register(Command{
+		Name:        "marks",
+		Description: "List all current marks",
+		Usage:       ":marks",
+		Handler:     cmdMarks,
+	})
+
 	return r
 }
 
@@ -215,6 +222,26 @@ func cmdSort(m *Model, args []string) (string, error) {
 		dirStr = "Descending"
 	}
 	return fmt.Sprintf("Sorted by %s (%s)", field, dirStr), nil
+}
+
+func cmdMarks(m *Model, args []string) (string, error) {
+	if len(m.marks) == 0 {
+		return "No marks set", nil
+	}
+
+	// Sort marks by letter
+	var letters []rune
+	for k := range m.marks {
+		letters = append(letters, k)
+	}
+	sort.Slice(letters, func(i, j int) bool { return letters[i] < letters[j] })
+
+	var lines []string
+	for _, letter := range letters {
+		mark := m.marks[letter]
+		lines = append(lines, fmt.Sprintf("  '%c'  %s", letter, mark.path))
+	}
+	return "Marks:\n" + strings.Join(lines, "\n"), nil
 }
 
 func cmdSet(m *Model, args []string) (string, error) {

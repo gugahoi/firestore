@@ -297,6 +297,40 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCopyAlternate()
 	}
 
+	// Handle pending mark operations
+	if m.pendingMark == "m" {
+		m.pendingMark = ""
+		if len(currentKey) == 1 && currentKey[0] >= 'a' && currentKey[0] <= 'z' {
+			letter := rune(currentKey[0])
+			if m.activeColumn < len(m.columns) {
+				col := m.columns[m.activeColumn]
+				m.marks[letter] = markEntry{path: col.path, isDoc: col.isDoc}
+				m.statusMsg = fmt.Sprintf("Mark '%c' set: %s", letter, col.path)
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+		}
+		return m, nil
+	}
+	if m.pendingMark == "'" {
+		m.pendingMark = ""
+		if len(currentKey) == 1 && currentKey[0] >= 'a' && currentKey[0] <= 'z' {
+			letter := rune(currentKey[0])
+			mark, ok := m.marks[letter]
+			if !ok {
+				m.statusMsg = fmt.Sprintf("Mark '%c' not set", letter)
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+			m.columns = []Column{{path: mark.path, isDoc: mark.isDoc, scrollOffset: 0}}
+			m.activeColumn = 0
+			m.loading = true
+			sortField, sortDir := m.getSortParams(mark.path)
+			return m, fetchColumnData(m.client, mark.path, mark.isDoc, 0, sortField, sortDir, withLimit(m.pageLimit))
+		}
+		return m, nil
+	}
+
 	// Any other key resets the double-tap tracking
 	if currentKey != "shift" && currentKey != "ctrl" && currentKey != "alt" {
 		m.lastKeyPress = ""
@@ -453,6 +487,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			sortField, sortDir := m.getSortParams(col.path)
 			return m, fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir, withLimit(m.pageLimit))
 		}
+		return m, nil
+
+	case "m":
+		m.pendingMark = "m"
+		return m, nil
+
+	case "'":
+		m.pendingMark = "'"
 		return m, nil
 
 	case "v":

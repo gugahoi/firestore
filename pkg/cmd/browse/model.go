@@ -82,6 +82,10 @@ type Model struct {
 	// Visual mode selection
 	selection *Selection
 
+	// Marks (vim-style bookmarks)
+	marks       map[rune]markEntry
+	pendingMark string // "m" or "'" when waiting for next key
+
 	// Delete confirmation
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
@@ -138,6 +142,11 @@ type ListItem struct {
 	depth    int        // indentation level
 	expanded bool       // is expanded?
 	children []ListItem // children nodes (if object/array)
+}
+
+type markEntry struct {
+	path  string
+	isDoc bool
 }
 
 // Message types for async operations

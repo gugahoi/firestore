@@ -75,11 +75,12 @@ type Section struct {
 
 // ListItem represents a single item in a list (document, collection, or data node)
 type ListItem struct {
-	id       string            // Display ID or Key
-	path     string            // Firestore path (for cols/docs) or JSON path (for data)
-	isDoc    bool              // true for documents, false for collections
-	isData   bool              // true if this is a data node
-	metadata map[string]string // CreateTime, etc.
+	id        string            // Display ID or Key
+	path      string            // Firestore path (for cols/docs) or JSON path (for data)
+	isDoc     bool              // true for documents, false for collections
+	isData    bool              // true if this is a data node
+	isMissing bool              // true if document has no data (only subcollections)
+	metadata  map[string]string // CreateTime, etc.
 
 	// Tree view fields
 	key      string

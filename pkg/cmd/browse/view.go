@@ -45,7 +45,8 @@ func (m Model) View() string {
 	modeIndicator := modeNormalStyle.Render("[" + m.mode.String() + "]")
 	switch m.mode {
 	case ModeVisual:
-		modeIndicator = modeVisualStyle.Render("[VISUAL]")
+		label := fmt.Sprintf("[VISUAL %d]", m.selection.Count())
+		modeIndicator = modeVisualStyle.Render(label)
 	case ModeCommand:
 		modeIndicator = modeCommandStyle.Render("[COMMAND]")
 	}
@@ -137,17 +138,24 @@ func (m Model) View() string {
 	}
 
 	if m.overlay == OverlayDeleteConfirm {
-		parts := strings.Split(m.deletePath, "/")
-		docID := m.deletePath
-		if len(parts) > 0 {
-			docID = parts[len(parts)-1]
+		var dialogTitle, dialogDetail string
+		if len(m.bulkDeletePaths) > 0 {
+			dialogTitle = fmt.Sprintf("Delete %d documents?", len(m.bulkDeletePaths))
+			dialogDetail = ""
+		} else {
+			dialogTitle = "Delete document?"
+			parts := strings.Split(m.deletePath, "/")
+			dialogDetail = m.deletePath
+			if len(parts) > 0 {
+				dialogDetail = parts[len(parts)-1]
+			}
 		}
 
 		dialogContent := lipgloss.JoinVertical(
 			lipgloss.Center,
-			errorStyle.Render("Delete document?"),
+			errorStyle.Render(dialogTitle),
 			"",
-			docID,
+			dialogDetail,
 			"",
 			footerStyle.Render("y/Enter: confirm  n/Esc: cancel"),
 		)
@@ -450,9 +458,13 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 					prefix = "> "
 				}
 
-				// Calculate space available for ID
-				// prefix(2) + space(1) = 3 chars roughly (ignoring ansi)
-				extraChars := 3
+				// Visual selection marker
+				selMark := " "
+				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+					selMark = "●"
+				}
+
+				extraChars := 4
 				availWidth := max(innerWidth-extraChars, 5)
 
 				displayID := item.id
@@ -460,17 +472,20 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 					displayID = displayID[:availWidth-3] + "..."
 				}
 
-				line := fmt.Sprintf("%s%s", prefix, displayID)
+				line := fmt.Sprintf("%s%s%s", prefix, selMark, displayID)
 				if item.isMissing {
-					line = fmt.Sprintf("%s%s", prefix, missingDocStyle.Render(displayID+" (no data)"))
+					line = fmt.Sprintf("%s%s%s", prefix, selMark, missingDocStyle.Render(displayID+" (no data)"))
 				}
-				if itemIndex == col.cursor {
+
+				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+					line = visualSelectedStyle.Render(line)
+				} else if itemIndex == col.cursor {
 					line = selectedItemStyle.Render(
-						fmt.Sprintf("%s%s", prefix, displayID),
+						fmt.Sprintf("%s%s%s", prefix, selMark, displayID),
 					)
 					if item.isMissing {
 						line = selectedItemStyle.Render(
-							fmt.Sprintf("%s%s (no data)", prefix, displayID),
+							fmt.Sprintf("%s%s%s (no data)", prefix, selMark, displayID),
 						)
 					}
 				}
@@ -647,7 +662,7 @@ func (m Model) getFooterHints() string {
 
 	switch m.mode {
 	case ModeVisual:
-		return "Esc: Normal mode"
+		return "v: Toggle select  j/k: Move  d: Delete selected  Esc: Cancel"
 	case ModeCommand:
 		return "Esc: Normal mode"
 	default:

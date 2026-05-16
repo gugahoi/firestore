@@ -114,6 +114,7 @@ Examples:
 				commandInput:    ci,
 				filterInput:     fi,
 				pageLimit:       50,
+				selection:       NewSelection(),
 			}
 
 			// Run TUI

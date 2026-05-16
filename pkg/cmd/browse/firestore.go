@@ -112,6 +112,26 @@ func withAppend() fetchOption {
 	return func(o *fetchOpts) { o.appendItems = true }
 }
 
+type bulkDeletedMsg struct {
+	count    int
+	colIndex int
+}
+
+func bulkDeleteDocuments(client *firestore.Client, paths []string, colIndex int) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		deleted := 0
+		for _, path := range paths {
+			docRef := client.Doc(strings.TrimPrefix(path, "/"))
+			if _, err := docRef.Delete(ctx); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to delete %s: %w", path, err)}
+			}
+			deleted++
+		}
+		return bulkDeletedMsg{count: deleted, colIndex: colIndex}
+	}
+}
+
 func deleteDocument(client *firestore.Client, path string, fromDocView bool) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()

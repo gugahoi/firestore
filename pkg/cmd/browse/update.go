@@ -51,11 +51,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleKeyPress(msg)
 
 		case ModeVisual:
-			if msg.String() == "esc" {
-				m.mode = ModeNormal
-				return m, nil
-			}
-			return m, nil
+			return m.handleVisualMode(msg)
 
 		case ModeCommand:
 			return m.handleCommandMode(msg)
@@ -243,6 +239,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, handleEditorFinished(msg.session)
+
+	case bulkDeletedMsg:
+		m.loading = false
+		m.statusMsg = fmt.Sprintf("%d documents deleted", msg.count)
+		m.statusMsgTime = time.Now()
+
+		if msg.colIndex < len(m.columns) {
+			col := m.columns[msg.colIndex]
+			sortField, sortDir := m.getSortParams(col.path)
+			m.loading = true
+			return m, tea.Batch(
+				fetchColumnData(m.client, col.path, col.isDoc, msg.colIndex, sortField, sortDir, withLimit(m.pageLimit)),
+				clearStatusAfterDelay(),
+			)
+		}
+		return m, clearStatusAfterDelay()
 
 	}
 
@@ -443,6 +455,25 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "v":
+		// Toggle selection and enter visual mode
+		if m.activeColumn < len(m.columns) && !m.columns[m.activeColumn].isDoc {
+			col := m.columns[m.activeColumn]
+			cursor := col.cursor
+			m.selection.Toggle(cursor)
+			m.mode = ModeVisual
+		}
+		return m, nil
+
+	case "V":
+		// Range-select mode
+		if m.activeColumn < len(m.columns) && !m.columns[m.activeColumn].isDoc {
+			col := m.columns[m.activeColumn]
+			m.selection.SetAnchor(col.cursor)
+			m.mode = ModeVisual
+		}
+		return m, nil
+
 	case "d":
 		if m.activeColumn >= len(m.columns) {
 			return m, nil
@@ -542,16 +573,29 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case OverlayDeleteConfirm:
 		switch msg.String() {
 		case "y", "enter":
+			m.overlay = OverlayNone
+
+			// Bulk delete
+			if len(m.bulkDeletePaths) > 0 {
+				paths := m.bulkDeletePaths
+				m.bulkDeletePaths = nil
+				m.selection.Clear()
+				m.mode = ModeNormal
+				m.loading = true
+				return m, bulkDeleteDocuments(m.client, paths, m.activeColumn)
+			}
+
+			// Single delete
 			path := m.deletePath
 			fromDocView := m.deleteFromDocView
 			m.deletePath = ""
 			m.deleteFromDocView = false
-			m.overlay = OverlayNone
 			m.loading = true
 			return m, deleteDocument(m.client, path, fromDocView)
 		case "n", "esc", "q":
 			m.deletePath = ""
 			m.deleteFromDocView = false
+			m.bulkDeletePaths = nil
 			m.overlay = OverlayNone
 			return m, nil
 		}
@@ -712,6 +756,93 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.commandInput, cmd = m.commandInput.Update(msg)
 	m.commandResult = ""
 	return m, cmd
+}
+
+// handleVisualMode processes keyboard input in Visual mode
+func (m Model) handleVisualMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = ModeNormal
+		m.selection.Clear()
+		return m, nil
+
+	case "v":
+		// Toggle selection on current item
+		if m.activeColumn < len(m.columns) {
+			m.selection.Toggle(m.columns[m.activeColumn].cursor)
+			if m.selection.Count() == 0 {
+				m.mode = ModeNormal
+			}
+		}
+		return m, nil
+
+	case "j", "down":
+		m.moveCursor(1)
+		if m.selection.HasAnchor() && m.activeColumn < len(m.columns) {
+			m.selection.ExtendTo(m.columns[m.activeColumn].cursor)
+		}
+		return m, nil
+
+	case "k", "up":
+		m.moveCursor(-1)
+		if m.selection.HasAnchor() && m.activeColumn < len(m.columns) {
+			m.selection.ExtendTo(m.columns[m.activeColumn].cursor)
+		}
+		return m, nil
+
+	case "g":
+		m.jumpToTop()
+		if m.selection.HasAnchor() && m.activeColumn < len(m.columns) {
+			m.selection.ExtendTo(m.columns[m.activeColumn].cursor)
+		}
+		return m, nil
+
+	case "G":
+		m.jumpToBottom()
+		if m.selection.HasAnchor() && m.activeColumn < len(m.columns) {
+			m.selection.ExtendTo(m.columns[m.activeColumn].cursor)
+		}
+		return m, nil
+
+	case "d":
+		// Bulk delete selected items
+		if m.selection.Count() == 0 {
+			return m, nil
+		}
+
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		// Collect paths of selected items
+		col := m.columns[m.activeColumn]
+		sections := m.getEffectiveSections(col)
+		var paths []string
+		itemIndex := 0
+		for _, section := range sections {
+			if section.hidden {
+				continue
+			}
+			for _, item := range section.items {
+				if m.selection.IsSelected(itemIndex) && item.isDoc && item.path != "__load_more__" {
+					paths = append(paths, item.path)
+				}
+				itemIndex++
+			}
+		}
+
+		if len(paths) == 0 {
+			m.statusMsg = "No documents selected"
+			m.statusMsgTime = time.Now()
+			return m, clearStatusAfterDelay()
+		}
+
+		m.bulkDeletePaths = paths
+		m.overlay = OverlayDeleteConfirm
+		return m, nil
+	}
+
+	return m, nil
 }
 
 func longestCommonPrefix(strs []string) string {

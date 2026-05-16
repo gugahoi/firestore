@@ -154,4 +154,10 @@ var (
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(colorGray).
 			Padding(0, 1)
+
+	// Visual mode selected item style
+	visualSelectedStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("0")).
+				Background(colorYellow)
 )

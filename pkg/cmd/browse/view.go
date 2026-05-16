@@ -674,12 +674,15 @@ func (m Model) getFooterHints() string {
 func (m Model) renderStatusBar() string {
 	var parts []string
 
-	// Show pagination info for active collection column
+	// Show pagination info and active query for active collection column
 	if m.activeColumn < len(m.columns) {
 		col := m.columns[m.activeColumn]
 		if !col.isDoc && col.docCount > 0 {
 			info := fmt.Sprintf("%d docs | limit: %d", col.docCount, m.pageLimit)
 			parts = append(parts, info)
+		}
+		if col.activeQuery != nil {
+			parts = append(parts, "Query: "+col.activeQuery.String())
 		}
 	}
 

@@ -96,6 +96,7 @@ type fetchOpts struct {
 	limit       int
 	offset      int
 	appendItems bool
+	query       *QueryParam
 }
 
 type fetchOption func(*fetchOpts)
@@ -110,6 +111,10 @@ func withOffset(n int) fetchOption {
 
 func withAppend() fetchOption {
 	return func(o *fetchOpts) { o.appendItems = true }
+}
+
+func withQuery(q *QueryParam) fetchOption {
+	return func(o *fetchOpts) { o.query = q }
 }
 
 type bulkDeletedMsg struct {
@@ -191,6 +196,9 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 
 			// Apply sorting if specified
 			query := colRef.Query
+			if fo.query != nil {
+				query = query.Where(fo.query.Field, fo.query.Operator, fo.query.Value)
+			}
 			if sortField != "" {
 				query = query.OrderBy(sortField, sortDirection)
 			}

@@ -120,6 +120,7 @@ type Column struct {
 	scrollOffset    int                    // Scroll position for lists
 	hasMore         bool                   // true if more pages available
 	docCount        int                    // total document count loaded so far
+	activeQuery     *QueryParam            // active server-side query filter
 }
 
 // Section represents a section within a column (Documents or Subcollections)

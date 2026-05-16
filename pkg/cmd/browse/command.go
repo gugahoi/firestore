@@ -154,6 +154,12 @@ func cmdGoto(m *Model, args []string) (string, error) {
 		isDoc = len(segments)%2 == 0
 	}
 
+	// Push current location to jumplist
+	if m.activeColumn < len(m.columns) {
+		cur := m.columns[m.activeColumn]
+		m.jumplist.Push(cur.path, cur.isDoc)
+	}
+
 	m.columns = []Column{{
 		path:         path,
 		isDoc:        isDoc,

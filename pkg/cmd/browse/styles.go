@@ -130,4 +130,28 @@ var (
 				BorderForeground(colorRed).
 				Padding(1, 2).
 				Width(50)
+
+	// Mode indicator styles
+	modeNormalStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("0")).
+			Background(colorGreen).
+			Padding(0, 1)
+
+	modeVisualStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("0")).
+			Background(colorYellow).
+			Padding(0, 1)
+
+	modeCommandStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("0")).
+				Background(colorBlue).
+				Padding(0, 1)
+
+	// Status bar style
+	statusBarStyle = lipgloss.NewStyle().
+			Foreground(colorGray).
+			Padding(0, 1)
 )

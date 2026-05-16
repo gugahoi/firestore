@@ -141,8 +141,8 @@ func (m *Model) autoScroll() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	// Match height calculation in view.go: m.height - 7 (header/path/footer/margin) - 2 (borders)
-	viewHeight := m.height - 9
+	// Match height calculation in view.go: m.height - 5 (header/statusbar/footer/error/margin) - 2 (borders)
+	viewHeight := m.height - 7
 	if viewHeight < 1 {
 		viewHeight = 10
 	}
@@ -295,7 +295,7 @@ func (m *Model) scrollDown() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	viewHeight := m.height - 9
+	viewHeight := m.height - 7
 	if viewHeight < 1 {
 		viewHeight = 10
 	}
@@ -317,7 +317,7 @@ func (m *Model) scrollUp() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	viewHeight := m.height - 9
+	viewHeight := m.height - 7
 	if viewHeight < 1 {
 		viewHeight = 10
 	}

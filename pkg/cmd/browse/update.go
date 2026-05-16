@@ -15,120 +15,40 @@ import (
 
 // Update handles all messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		logDebug("KeyMsg received: %s", msg.String())
+		logDebug("KeyMsg received: %s (mode=%s, overlay=%d)", msg.String(), m.mode, m.overlay)
 
-		// Handle input mode
-		if m.mode == ModePathInput {
-			switch msg.String() {
-			case "enter":
-				// Browse to new path
-				path := strings.Trim(m.textInput.Value(), "/")
-
-				// Determine if it is a doc or collection
-				// A simple heuristic: even segments = doc, odd = collection
-				// Root (empty string) is handled as collection list
-				isDoc := false
-				if path != "" {
-					segments := strings.Split(path, "/")
-					isDoc = len(segments)%2 == 0
-				}
-
-				// Reset columns
-				m.columns = []Column{{
-					path:         path,
-					isDoc:        isDoc,
-					scrollOffset: 0,
-				}}
-				m.activeColumn = 0
-				m.mode = ModeNormal
-				m.textInput.Blur()
-				m.textInput.Reset()
-				m.loading = true
-				sortField, sortDir := m.getSortParams(path)
-				return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir)
-			case "esc":
-				m.mode = ModeNormal
-				m.textInput.Blur()
-				m.textInput.Reset()
-				return m, nil
-			}
-			m.textInput, cmd = m.textInput.Update(msg)
-			return m, cmd
+		// Handle overlays first (dialogs on top of any mode)
+		if m.overlay != OverlayNone {
+			return m.handleOverlay(msg)
 		}
 
-		// Handle sort dialog mode
-		if m.mode == ModeSortDialog {
-			switch msg.String() {
-			case "tab":
-				// Toggle focus between text input and list
-				if m.sortDialog.focusedComponent == 0 {
-					m.sortDialog.focusedComponent = 1
-					m.sortDialog.textInput.Blur()
-				} else {
-					m.sortDialog.focusedComponent = 0
-					m.sortDialog.textInput.Focus()
-				}
-				return m, nil
-			case "ctrl+d":
-				// Toggle direction
-				if m.sortDialog.direction == firestore.Asc {
-					m.sortDialog.direction = firestore.Desc
-				} else {
-					m.sortDialog.direction = firestore.Asc
-				}
-				return m, nil
-			case "enter":
-				// Apply sort
-				return m.applySortAndClose()
-			case "esc":
-				// Cancel
+		// Route through mode system
+		switch m.mode {
+		case ModeNormal:
+			// Global keys available in normal mode
+			if msg.String() == "ctrl+g" {
+				m.overlay = OverlayPathInput
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+			return m.handleKeyPress(msg)
+
+		case ModeVisual:
+			if msg.String() == "esc" {
 				m.mode = ModeNormal
 				return m, nil
 			}
+			return m, nil
 
-			// Delegate to focused component
-			if m.sortDialog.focusedComponent == 0 {
-				// Text input focused
-				m.sortDialog.textInput, cmd = m.sortDialog.textInput.Update(msg)
-			} else {
-				// List focused
-				cmd = m.sortDialog.Update(msg)
-			}
-			return m, cmd
-		}
-
-		// Handle delete confirmation mode
-		if m.mode == ModeDeleteConfirm {
-			switch msg.String() {
-			case "y", "enter":
-				path := m.deletePath
-				fromDocView := m.deleteFromDocView
-				m.deletePath = ""
-				m.deleteFromDocView = false
-				m.mode = ModeNormal
-				m.loading = true
-				return m, deleteDocument(m.client, path, fromDocView)
-			case "n", "esc", "q":
-				m.deletePath = ""
-				m.deleteFromDocView = false
+		case ModeCommand:
+			if msg.String() == "esc" {
 				m.mode = ModeNormal
 				return m, nil
 			}
 			return m, nil
 		}
-
-		// Handle normal mode global keys
-		if msg.String() == "ctrl+g" {
-			m.mode = ModePathInput
-			m.textInput.Focus()
-			return m, textinput.Blink
-		}
-
-		return m.handleKeyPress(msg)
 
 	case tea.WindowSizeMsg:
 
@@ -139,7 +59,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.columns {
 			if m.columns[i].isDoc && m.columns[i].docContent != "" {
 				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 6 // Account for header and footer
+				colHeight := m.height - 7 // Account for header and footer
 				vpWidth := colWidth - 4
 				vpHeight := colHeight - 10
 				// Ensure minimum viewport dimensions (at least 20x5)
@@ -176,7 +96,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Only create viewport if we have valid dimensions
 			if m.columns[msg.columnIndex].isDoc && msg.docContent != "" && m.width > 0 && m.height > 0 {
 				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 6
+				colHeight := m.height - 7
 				// Ensure minimum viewport dimensions (at least 20x5)
 				vpWidth := colWidth - 4
 				vpHeight := colHeight - 10
@@ -431,7 +351,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Initialize sort dialog with available fields
 		m.sortDialog = initSortDialog(col.availableFields)
-		m.mode = ModeSortDialog
+		m.overlay = OverlaySortDialog
 		return m, nil
 
 	case "S":
@@ -504,7 +424,95 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		m.deletePath = docPath
-		m.mode = ModeDeleteConfirm
+		m.overlay = OverlayDeleteConfirm
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleOverlay processes keyboard input when an overlay/dialog is active
+func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch m.overlay {
+	case OverlayPathInput:
+		switch msg.String() {
+		case "enter":
+			path := strings.Trim(m.textInput.Value(), "/")
+			isDoc := false
+			if path != "" {
+				segments := strings.Split(path, "/")
+				isDoc = len(segments)%2 == 0
+			}
+			m.columns = []Column{{
+				path:         path,
+				isDoc:        isDoc,
+				scrollOffset: 0,
+			}}
+			m.activeColumn = 0
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+			m.loading = true
+			sortField, sortDir := m.getSortParams(path)
+			return m, fetchColumnData(m.client, path, isDoc, 0, sortField, sortDir)
+		case "esc":
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+			return m, nil
+		}
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+
+	case OverlaySortDialog:
+		switch msg.String() {
+		case "tab":
+			if m.sortDialog.focusedComponent == 0 {
+				m.sortDialog.focusedComponent = 1
+				m.sortDialog.textInput.Blur()
+			} else {
+				m.sortDialog.focusedComponent = 0
+				m.sortDialog.textInput.Focus()
+			}
+			return m, nil
+		case "ctrl+d":
+			if m.sortDialog.direction == firestore.Asc {
+				m.sortDialog.direction = firestore.Desc
+			} else {
+				m.sortDialog.direction = firestore.Asc
+			}
+			return m, nil
+		case "enter":
+			return m.applySortAndClose()
+		case "esc":
+			m.overlay = OverlayNone
+			return m, nil
+		}
+		if m.sortDialog.focusedComponent == 0 {
+			m.sortDialog.textInput, cmd = m.sortDialog.textInput.Update(msg)
+		} else {
+			cmd = m.sortDialog.Update(msg)
+		}
+		return m, cmd
+
+	case OverlayDeleteConfirm:
+		switch msg.String() {
+		case "y", "enter":
+			path := m.deletePath
+			fromDocView := m.deleteFromDocView
+			m.deletePath = ""
+			m.deleteFromDocView = false
+			m.overlay = OverlayNone
+			m.loading = true
+			return m, deleteDocument(m.client, path, fromDocView)
+		case "n", "esc", "q":
+			m.deletePath = ""
+			m.deleteFromDocView = false
+			m.overlay = OverlayNone
+			return m, nil
+		}
 		return m, nil
 	}
 
@@ -535,7 +543,7 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 	}
 
 	// Close dialog and refresh with sort
-	m.mode = ModeNormal
+	m.overlay = OverlayNone
 	m.loading = true
 
 	// Show status message

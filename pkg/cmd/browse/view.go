@@ -25,17 +25,12 @@ func (m Model) View() string {
 	// Construct path string from columns
 	var pathSegments []string
 	for i, col := range m.columns {
-		// Only show path segments for the active path (up to active column)
 		if i > m.activeColumn {
 			break
 		}
-
-		// For the first column (root), we ignore empty path
 		if i == 0 && col.path == "" {
 			continue
 		}
-
-		// For other columns, extract the last segment of the path
 		parts := strings.Split(col.path, "/")
 		if len(parts) > 0 {
 			segment := parts[len(parts)-1]
@@ -44,20 +39,33 @@ func (m Model) View() string {
 			}
 		}
 	}
-
-	// Join segments with "/"
 	fullPath := "/" + strings.Join(pathSegments, "/")
-	pathView := pathStyle.Render("Path: " + fullPath)
 
-	// Footer
-	footer := footerStyle.Render(
-		"j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  S: Clear Sort  e: Edit  d: Delete  yy: Copy  Y: Copy ID  ya: Copy Doc  r: Refresh  q: Quit",
-	)
+	// Header: project ID | path | mode indicator
+	modeIndicator := modeNormalStyle.Render("[" + m.mode.String() + "]")
+	switch m.mode {
+	case ModeVisual:
+		modeIndicator = modeVisualStyle.Render("[VISUAL]")
+	case ModeCommand:
+		modeIndicator = modeCommandStyle.Render("[COMMAND]")
+	}
+
+	headerLeft := headerStyle.Render(m.projectID)
+	headerPath := pathStyle.Render(fullPath)
+	headerRight := modeIndicator
+	headerGap := strings.Repeat(" ", max(m.width-lipgloss.Width(headerLeft)-lipgloss.Width(headerPath)-lipgloss.Width(headerRight)-2, 1))
+	header := headerLeft + " " + headerPath + headerGap + headerRight
+
+	// Footer: context-sensitive hints based on mode/overlay
+	footer := footerStyle.Render(m.getFooterHints())
+
+	// Status bar (placeholder between columns and footer)
+	statusBar := m.renderStatusBar()
 
 	// Error message
-	errorMsg := ""
+	errorView := ""
 	if m.err != nil {
-		errorMsg = errorStyle.Render(fmt.Sprintf("Error: %v", m.err))
+		errorView = errorStyle.Render(fmt.Sprintf("Error: %v", m.err))
 	}
 
 	// Loading indicator
@@ -74,36 +82,23 @@ func (m Model) View() string {
 	logDebug("View: about to JoinVertical")
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
+		header,
 		columnsView,
-		pathView,
-		errorMsg,
+		statusBar,
+		errorView,
 		loadingMsg,
 		footer,
 	)
 	logDebug("View: JoinVertical successful, contentLen=%d", len(content))
 
-	// Overlay input dialog if in input mode
-	if m.mode == ModePathInput {
-		// Create dialog content
+	// Overlay dialogs
+	if m.overlay == OverlayPathInput {
 		dialogContent := lipgloss.JoinVertical(
 			lipgloss.Center,
 			"Enter Firestore Path:",
 			m.textInput.View(),
 		)
 		dialog := inputDialogStyle.Render(dialogContent)
-
-		// Center dialog over existing content
-		// For simplicity in Bubble Tea without advanced layering, we can just replace the content
-		// or use lipgloss.Place to overlay if we had a full screen canvas,
-		// but standard string joining doesn't do z-index.
-		// However, lipgloss.Place can position a string within a given dimension.
-		// We can try to overlay it on top of the 'content' string if we treat 'content' as the background?
-		// But lipgloss.Place works on a whitespace background.
-		// A simpler way for a TUI modal:
-		// Just render the dialog in the middle of the screen size, replacing the middle part?
-		// Or render it OVER the content using lipgloss.Place.
-
-		// Let's use lipgloss.Place to center the dialog in the full terminal size
 		return lipgloss.Place(
 			m.width,
 			m.height,
@@ -111,22 +106,11 @@ func (m Model) View() string {
 			lipgloss.Center,
 			dialog,
 			lipgloss.WithWhitespaceChars(" "),
-			lipgloss.WithWhitespaceForeground(
-				colorGray,
-			), // Dim background? No, this replaces background
+			lipgloss.WithWhitespaceForeground(colorGray),
 		)
-		// Wait, this REPLACES the entire view with the placed dialog on a blank background.
-		// To show the underlying content dimmed, we'd need to manually composite.
-		// For now, replacing the view with the dialog is acceptable for a modal,
-		// but ideally we want to see the background.
-		// Given the constraints, let's just return the dialog centered on a blank screen for now to ensure it works.
-		// Or better: render the main view, then if we could overlay...
-		// But string overlay is hard.
-		// Let's just return the dialog centered. It's a "modal" mode.
 	}
 
-	// Render sort dialog if active
-	if m.mode == ModeSortDialog {
+	if m.overlay == OverlaySortDialog {
 		dialog := m.sortDialog.View()
 		return lipgloss.Place(
 			m.width,
@@ -137,9 +121,7 @@ func (m Model) View() string {
 		)
 	}
 
-	// Render delete confirmation dialog
-	if m.mode == ModeDeleteConfirm {
-		// Extract document ID from path for display
+	if m.overlay == OverlayDeleteConfirm {
 		parts := strings.Split(m.deletePath, "/")
 		docID := m.deletePath
 		if len(parts) > 0 {
@@ -377,12 +359,14 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 
 	// Calculate available height
 	// m.height includes:
-	// - path (1)
+	// - header (1)
+	// - status bar (1)
 	// - footer (1)
+	// - error/loading (1)
 	// - some margin (1)
-	// Total overhead = 4
+	// Total overhead = 5
 	// We also need to account for the border (top + bottom = 2)
-	height := m.height - 4 - 2
+	height := m.height - 5 - 2
 	if height < 1 {
 		height = 10 // Minimum height
 	}
@@ -626,4 +610,31 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	}
 
 	return result
+}
+
+// getFooterHints returns context-sensitive keybinding hints
+func (m Model) getFooterHints() string {
+	if m.overlay == OverlaySortDialog {
+		return "Tab: Switch field  Ctrl+d: Toggle direction  Enter: Apply  Esc: Cancel"
+	}
+	if m.overlay == OverlayDeleteConfirm {
+		return "y/Enter: Confirm  n/Esc: Cancel"
+	}
+	if m.overlay == OverlayPathInput {
+		return "Enter: Navigate  Esc: Cancel"
+	}
+
+	switch m.mode {
+	case ModeVisual:
+		return "Esc: Normal mode"
+	case ModeCommand:
+		return "Esc: Normal mode"
+	default:
+		return "j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  s: Sort  e: Edit  d: Delete  yy: Copy  Y: Copy ID  r: Refresh  Ctrl+g: Goto  q: Quit"
+	}
+}
+
+// renderStatusBar renders the status bar area between columns and footer
+func (m Model) renderStatusBar() string {
+	return statusBarStyle.Render("")
 }

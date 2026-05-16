@@ -285,6 +285,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case documentCreatedMsg:
+		m.loading = false
+		m.statusMsg = fmt.Sprintf("Document created: %s", msg.docID)
+		m.statusMsgTime = time.Now()
+
+		if msg.colIndex < len(m.columns) {
+			col := m.columns[msg.colIndex]
+			sortField, sortDir := m.getSortParams(col.path)
+			m.loading = true
+			return m, tea.Batch(
+				fetchColumnData(m.client, col.path, col.isDoc, msg.colIndex, sortField, sortDir, withLimit(m.pageLimit)),
+				clearStatusAfterDelay(),
+			)
+		}
+		return m, clearStatusAfterDelay()
+
 	case bulkDeletedMsg:
 		m.loading = false
 		m.statusMsg = fmt.Sprintf("%d documents deleted", msg.count)
@@ -849,6 +865,13 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if statusText != "" {
 			m.statusMsg = statusText
 			m.statusMsgTime = time.Now()
+		}
+
+		// Check if the handler set a pending editor launch
+		if m.pendingEditor != nil {
+			cmd := m.pendingEditor
+			m.pendingEditor = nil
+			return m, cmd
 		}
 
 		// Check if the handler set a pending fetch

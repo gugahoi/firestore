@@ -14,10 +14,13 @@ import (
 
 // editSession holds state for an ongoing edit session
 type editSession struct {
-	client   *firestore.Client
-	docPath  string
-	tempFile string
-	editor   string
+	client     *firestore.Client
+	docPath    string
+	tempFile   string
+	editor     string
+	isCreate   bool   // true when creating a new document
+	colPath    string // collection path (for create mode)
+	colIndex   int    // column index to refresh after create
 }
 
 // detectEditor finds the user's preferred editor
@@ -150,6 +153,67 @@ func openEditorCmd(session editSession) tea.Cmd {
 	})
 }
 
+// generateTemplate creates a JSON template from the first document's field structure
+func generateTemplate(sections []Section) string {
+	for _, s := range sections {
+		if s.title == "Documents" && len(s.items) > 0 {
+			// We can't derive the template from ListItems directly since they don't have full data.
+			// The template will be based on available fields from the column.
+			break
+		}
+	}
+	return "{}"
+}
+
+// generateTemplateFromFields creates a JSON template with null values for each field
+func generateTemplateFromFields(fields []string) string {
+	if len(fields) == 0 {
+		return "{}"
+	}
+	data := make(map[string]interface{})
+	for _, f := range fields {
+		data[f] = nil
+	}
+	jsonBytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(jsonBytes)
+}
+
+// startAddCmd initializes a create session and launches the editor
+func startAddCmd(client *firestore.Client, colPath string, docID string, availableFields []string, colIndex int) tea.Cmd {
+	return func() tea.Msg {
+		editor, err := detectEditor()
+		if err != nil {
+			return errorMsg{err: err}
+		}
+
+		template := generateTemplateFromFields(availableFields)
+
+		tempFile, err := createTempFile(template)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+
+		session := editSession{
+			client:   client,
+			docPath:  colPath + "/" + docID,
+			tempFile: tempFile,
+			editor:   editor,
+			isCreate: true,
+			colPath:  colPath,
+			colIndex: colIndex,
+		}
+
+		if docID == "" {
+			session.docPath = ""
+		}
+
+		return launchEditorMsg{session: session}
+	}
+}
+
 // handleEditorFinished processes the result after editor closes
 func handleEditorFinished(session editSession) tea.Cmd {
 	return func() tea.Msg {
@@ -167,19 +231,48 @@ func handleEditorFinished(session editSession) tea.Cmd {
 			return launchEditorMsg{session: session}
 		}
 
-		// Valid JSON - save to Firestore
 		ctx := context.Background()
+
+		if session.isCreate {
+			// Create new document
+			var docRef *firestore.DocumentRef
+			colRef := session.client.Collection(strings.TrimPrefix(session.colPath, "/"))
+
+			if session.docPath == "" {
+				// Auto-generated ID
+				docRef = colRef.NewDoc()
+			} else {
+				// Custom ID
+				parts := strings.Split(session.docPath, "/")
+				docID := parts[len(parts)-1]
+				docRef = colRef.Doc(docID)
+			}
+
+			_, err = docRef.Set(ctx, newData)
+
+			os.Remove(session.tempFile)
+
+			if err != nil {
+				return errorMsg{err: fmt.Errorf("failed to create document: %w", err)}
+			}
+
+			return documentCreatedMsg{
+				colPath:  session.colPath,
+				docID:    docRef.ID,
+				colIndex: session.colIndex,
+			}
+		}
+
+		// Update existing document
 		docRef := session.client.Doc(strings.TrimPrefix(session.docPath, "/"))
 		_, err = docRef.Set(ctx, newData)
 
-		// Clean up temp file
 		os.Remove(session.tempFile)
 
 		if err != nil {
 			return errorMsg{err: fmt.Errorf("failed to save document: %w", err)}
 		}
 
-		// Return success message
 		return documentUpdatedMsg{
 			path: session.docPath,
 			data: newData,

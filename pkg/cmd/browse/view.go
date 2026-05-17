@@ -7,12 +7,28 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func extractColumnTitle(col Column) string {
+	if col.path == "" {
+		return "Collections"
+	}
+	parts := strings.Split(col.path, "/")
+	return parts[len(parts)-1]
+}
+
+func verticalSeparator(height int) string {
+	styled := columnSeparatorStyle.Render(" │ ")
+	lines := make([]string, height)
+	for i := range lines {
+		lines[i] = styled
+	}
+	return strings.Join(lines, "\n")
+}
+
 // View renders the entire TUI
 func (m Model) View() string {
 	defer func() {
 		if r := recover(); r != nil {
 			logDebug("PANIC in View: %v", r)
-			// Don't re-panic, return error message instead
 		}
 	}()
 
@@ -22,8 +38,9 @@ func (m Model) View() string {
 		return "Initializing..."
 	}
 
-	// Construct path string from columns
-	var pathSegments []string
+	// Breadcrumb header: project › segment1 › segment2
+	var breadcrumb strings.Builder
+	breadcrumb.WriteString(headerProjectStyle.Render(m.projectID))
 	for i, col := range m.columns {
 		if i > m.activeColumn {
 			break
@@ -35,13 +52,12 @@ func (m Model) View() string {
 		if len(parts) > 0 {
 			segment := parts[len(parts)-1]
 			if segment != "" {
-				pathSegments = append(pathSegments, segment)
+				breadcrumb.WriteString(headerSepStyle.Render("  ›  "))
+				breadcrumb.WriteString(headerPathStyle.Render(segment))
 			}
 		}
 	}
-	fullPath := "/" + strings.Join(pathSegments, "/")
 
-	// Header: project ID | path | mode indicator
 	modeIndicator := modeNormalStyle.Render("[" + m.mode.String() + "]")
 	switch m.mode {
 	case ModeVisual:
@@ -51,13 +67,47 @@ func (m Model) View() string {
 		modeIndicator = modeCommandStyle.Render("[COMMAND]")
 	}
 
-	headerLeft := headerStyle.Render(m.projectID)
-	headerPath := pathStyle.Render(fullPath)
+	headerLeft := breadcrumb.String()
 	headerRight := modeIndicator
-	headerGap := strings.Repeat(" ", max(m.width-lipgloss.Width(headerLeft)-lipgloss.Width(headerPath)-lipgloss.Width(headerRight)-2, 1))
-	header := headerLeft + " " + headerPath + headerGap + headerRight
+	headerGap := strings.Repeat(" ", max(m.width-lipgloss.Width(headerLeft)-lipgloss.Width(headerRight)-4, 1))
+	header := "  " + headerLeft + headerGap + headerRight + "  "
 
-	// Footer: context-sensitive hints, command prompt, or filter input
+	// Columns
+	columnsView := m.renderColumns()
+	logDebug("View: columnsView length=%d", len(columnsView))
+
+	// Separator line + combined status/footer
+	separatorLine := "  " + footerSepStyle.Render(strings.Repeat("─", max(m.width-4, 0)))
+
+	// Build left side: status info
+	var statusParts []string
+	if m.activeColumn < len(m.columns) {
+		col := m.columns[m.activeColumn]
+		if !col.isDoc && col.docCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d docs", col.docCount))
+		}
+		if col.activeQuery != nil {
+			statusParts = append(statusParts, "Query: "+col.activeQuery.String())
+		}
+	}
+	if m.filterActive && m.filterPattern != "" {
+		statusParts = append(statusParts, "Filter: "+m.filterPattern)
+	}
+	if m.previewEnabled {
+		statusParts = append(statusParts, "Preview: ON")
+	}
+
+	// Error/loading inline
+	if m.err != nil {
+		statusParts = append(statusParts, errorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	}
+	if m.loading {
+		statusParts = append(statusParts, loadingStyle.Render("Loading..."))
+	}
+
+	statusLeft := strings.Join(statusParts, "  │  ")
+
+	// Footer: context-sensitive hints or command input
 	var footer string
 	if m.mode == ModeCommand {
 		commandLine := m.commandInput.View()
@@ -72,42 +122,43 @@ func (m Model) View() string {
 	} else if m.overlay == OverlayFilter {
 		footer = m.filterInput.View()
 	} else {
-		footer = footerStyle.Render(m.getFooterHints())
+		hintsRight := m.getFooterHints()
+		gap := strings.Repeat(" ", max(m.width-lipgloss.Width(statusLeft)-lipgloss.Width(hintsRight)-4, 1))
+		footer = footerStyle.Render(statusLeft + gap + hintsRight)
 	}
-
-	// Status bar (placeholder between columns and footer)
-	statusBar := m.renderStatusBar()
-
-	// Error message
-	errorView := ""
-	if m.err != nil {
-		errorView = errorStyle.Render(fmt.Sprintf("Error: %v", m.err))
-	}
-
-	// Loading indicator
-	loadingMsg := ""
-	if m.loading {
-		loadingMsg = loadingStyle.Render("Loading...")
-	}
-
-	// Render columns
-	columnsView := m.renderColumns()
-	logDebug("View: columnsView length=%d", len(columnsView))
 
 	// Combine all parts
 	logDebug("View: about to JoinVertical")
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
+		"",
 		columnsView,
-		statusBar,
-		errorView,
-		loadingMsg,
+		separatorLine,
 		footer,
 	)
+	// Ensure content fills terminal height so overlays center correctly
+	content = lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	logDebug("View: JoinVertical successful, contentLen=%d", len(content))
 
-	// Overlay dialogs
+	// Overlay dialogs — all centered over the main layout
+	if m.overlay == OverlayInfo {
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.infoContent,
+			"",
+			footerStyle.Render("Esc/q/Enter: close"),
+		)
+		dialog := infoDialogStyle.Render(dialogContent)
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+		)
+	}
+
 	if m.overlay == OverlayPathInput {
 		dialogContent := lipgloss.JoinVertical(
 			lipgloss.Center,
@@ -169,38 +220,30 @@ func (m Model) View() string {
 		)
 	}
 
-	// Overlay status notification if present (floating window)
+	// Floating status notification
 	if m.statusMsg != "" {
-		// Create notification box with border
 		notificationStyle := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorGreen).
-			Background(lipgloss.Color("235")). // Dark background
+			Background(lipgloss.Color("235")).
 			Foreground(colorGreen).
 			Padding(0, 1).
 			Bold(true)
 
 		notification := notificationStyle.Render(m.statusMsg)
 
-		// Split content into lines
 		lines := strings.Split(content, "\n")
 
-		// Calculate position near bottom but above footer
-		// Footer is typically the last line, so place notification a few lines above
 		notificationLine := len(lines) - 3
 		if notificationLine < 2 {
-			notificationLine = 2 // Minimum position from top
+			notificationLine = 2
 		}
-
-		// Make sure we don't go beyond the content
 		if notificationLine >= len(lines) {
 			notificationLine = len(lines) - 1
 		}
 
-		// Position notification at bottom right
 		notificationLines := strings.Split(notification, "\n")
 
-		// Overlay each line of the notification at the right edge
 		for i, notifLine := range notificationLines {
 			linePos := notificationLine + i
 			if linePos < len(lines) {
@@ -208,31 +251,26 @@ func (m Model) View() string {
 				existingLine := lines[linePos]
 				existingWidth := lipgloss.Width(existingLine)
 
-				// Calculate padding to align to the right
-				leftPad := existingWidth - notifWidth - 2 // -2 for a small margin from right edge
+				leftPad := existingWidth - notifWidth - 2
 				if leftPad < 0 {
 					leftPad = 0
 				}
 
-				// Align to right by adding left padding
 				if leftPad+notifWidth <= existingWidth {
-					// Right-align with padding
 					lines[linePos] = strings.Repeat(" ", leftPad) + notifLine
 				} else {
-					// Notification is wider than existing line, just place it
 					lines[linePos] = notifLine
 				}
 			}
 		}
 
-		// Rejoin the content
 		content = strings.Join(lines, "\n")
 	}
 
 	return content
 }
 
-// renderColumns renders all visible columns side by side
+// renderColumns renders all visible columns side by side with separators
 func (m Model) renderColumns() string {
 	defer func() {
 		if r := recover(); r != nil {
@@ -246,261 +284,154 @@ func (m Model) renderColumns() string {
 
 	visibleCols := getVisibleColumns(m.columns, m.activeColumn)
 
-	// Calculate column width, reserving space for preview if enabled
-	previewWidth := 0
-	totalWidth := m.width
-	if m.previewEnabled && len(m.previewNodes) > 0 {
-		previewWidth = totalWidth / 3
-		totalWidth -= previewWidth
+	// Height for columns area: total height minus header(1), blank(1), separator(1), footer(1), margin(1)
+	height := m.height - 5
+	if height < 6 {
+		height = 6
 	}
-	colWidth := calculateColumnWidth(totalWidth, len(visibleCols))
+
+	// Calculate column width
+	sepWidth := 3 // " │ "
+	margin := 4  // 2 padding on each side
+
+	previewWidth := 0
+	availWidth := m.width - margin
+	if m.previewEnabled && len(m.previewNodes) > 0 {
+		previewWidth = (m.width - margin) / 3
+		availWidth -= previewWidth + sepWidth
+	}
+
+	colWidth := calculateColumnWidth(availWidth, len(visibleCols))
 	logDebug("renderColumns: visibleCols=%d, colWidth=%d, previewWidth=%d", len(visibleCols), colWidth, previewWidth)
 
-	var renderedCols []string
+	var parts []string
 	for i, col := range visibleCols {
 		isActive := (i == m.activeColumn) || (len(m.columns) > 4 && i == 3)
 
-		rendered := m.renderColumn(col, colWidth, isActive)
+		if i > 0 {
+			parts = append(parts, verticalSeparator(height))
+		}
+
+		rendered := m.renderColumn(col, colWidth, height, isActive)
 		logDebug("renderColumns: column %d rendered, length=%d", i, len(rendered))
-		renderedCols = append(renderedCols, rendered)
+		parts = append(parts, rendered)
 	}
 
 	// Add preview pane if enabled
 	if m.previewEnabled && previewWidth > 0 && len(m.previewNodes) > 0 {
-		previewCol := m.renderPreviewPane(previewWidth)
-		renderedCols = append(renderedCols, previewCol)
+		parts = append(parts, verticalSeparator(height))
+		previewCol := m.renderPreviewPane(previewWidth, height)
+		parts = append(parts, previewCol)
 	}
 
-	logDebug("renderColumns: about to JoinHorizontal with %d columns", len(renderedCols))
-	result := lipgloss.JoinHorizontal(lipgloss.Top, renderedCols...)
+	logDebug("renderColumns: about to JoinHorizontal with %d parts", len(parts))
+	result := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 	logDebug("renderColumns: JoinHorizontal successful, resultLen=%d", len(result))
-	return result
+
+	// Add horizontal margin
+	return lipgloss.NewStyle().Padding(0, 2).Render(result)
 }
 
-// Helper to render tree nodes recursively
-func (m Model) renderTreeNodes(
-	nodes []ListItem,
-	level int,
-	cursor int,
-	itemIndex *int,
-	content *strings.Builder,
-	wrapper lipgloss.Style,
-	innerWidth int,
-) int {
-	linesUsed := 0
-
-	for _, node := range nodes {
-		prefix := strings.Repeat("  ", level)
-
-		cursorMarker := "  "
-		if *itemIndex == cursor {
-			cursorMarker = "> "
-		}
-
-		// Icon for expandable items
-		icon := " "
-		if node.dataType == "object" || node.dataType == "array" {
-			if node.expanded {
-				icon = "▼"
-			} else {
-				icon = "▶"
-			}
-		}
-
-		// Style the key
-		keyStr := treeKeyStyle.Render(node.key)
-
-		// Style the value
-		valStr := ""
-		switch node.dataType {
-		case "string":
-			valStr = treeStringStyle.Render(fmt.Sprintf("%q", node.valueStr))
-		case "number":
-			valStr = treeNumberStyle.Render(node.valueStr)
-		case "bool":
-			valStr = treeBoolStyle.Render(node.valueStr)
-		case "null":
-			valStr = treeNullStyle.Render("null")
-		case "object", "array":
-			// Show type hint (e.g. "Object {2}" or "Array [5]")
-			// If we had count, we could show it, for now just show type
-			if node.dataType == "array" {
-				valStr = treeTypeStyle.Render(fmt.Sprintf("[%d]", len(node.children)))
-			} else {
-				valStr = treeTypeStyle.Render("{}")
-			}
-		default:
-			valStr = node.valueStr
-		}
-
-		// Build line: marker + indent + icon + key + ": " + value
-		// Note: we removed the dot point for leaf nodes as requested
-		lineStr := fmt.Sprintf("%s%s%s %s: %s", cursorMarker, prefix, icon, keyStr, valStr)
-
-		// Style the line selection (inverse background or similar might be better,
-		// but let's stick to simple bold/highlight for now, preserving color)
-		if *itemIndex == cursor {
-			// When selected, we might want to keep the colors but add an indicator
-			// or change background. For now, let's just make the cursor indicator bold/visible
-			// and keep the syntax highlighting.
-			// Re-building line with selected indicator style only on the marker/prefix if possible
-			// But since we are rendering the whole string, let's just use a selection style
-			// that doesn't strip color if possible, or just bold it.
-
-			// Simple approach: Use a different background for the whole line?
-			// Or just rely on the ">" marker which is already there.
-			// Let's wrap the whole line in a style that might add a background or bold
-			// without overriding foreground colors if lipgloss supports it.
-			// Lipgloss Foreground() overrides existing colors.
-			// So let's just use the marker ">" which is already distinct.
-
-			// However, the original code did: lineStr = selectedItemStyle.Render(lineStr)
-			// which forces white color. Let's just bold it and maybe add a background.
-			lineStr = lipgloss.NewStyle().Bold(true).Render(lineStr)
-		}
-
-		// Wrap and write
-		wrappedLine := wrapper.Render(lineStr)
-		content.WriteString(wrappedLine)
-		content.WriteString("\n")
-		linesUsed += strings.Count(wrappedLine, "\n") + 1
-
-		*itemIndex++
-
-		// Render children if expanded
-		if node.expanded && len(node.children) > 0 {
-			linesUsed += m.renderTreeNodes(
-				node.children,
-				level+1,
-				cursor,
-				itemIndex,
-				content,
-				wrapper,
-				innerWidth,
-			)
-		}
-	}
-
-	return linesUsed
-}
-
-// renderColumn renders a single column
-func (m Model) renderColumn(col Column, width int, isActive bool) string {
+// renderColumn renders a single column (borderless)
+func (m Model) renderColumn(col Column, width, height int, isActive bool) string {
 	defer func() {
 		if r := recover(); r != nil {
 			logPanic("renderColumn", r)
-			panic(r) // re-panic after logging
+			panic(r)
 		}
 	}()
 
-	// Calculate available height
-	// m.height includes:
-	// - header (1)
-	// - status bar (1)
-	// - footer (1)
-	// - error/loading (1)
-	// - some margin (1)
-	// Total overhead = 5
-	// We also need to account for the border (top + bottom = 2)
-	height := m.height - 5 - 2
-	if height < 1 {
-		height = 10 // Minimum height
+	// Column header: title + underline
+	title := extractColumnTitle(col)
+	var headerBuf strings.Builder
+	if isActive {
+		headerBuf.WriteString(columnTitleStyle.Render(title))
+	} else {
+		headerBuf.WriteString(columnTitleInactiveStyle.Render(title))
+	}
+	headerBuf.WriteString("\n")
+	underlineLen := min(lipgloss.Width(title), width)
+	headerBuf.WriteString(columnUnderlineStyle.Render(strings.Repeat("─", underlineLen)))
+	headerBuf.WriteString("\n")
+
+	headerLines := 2
+	itemsHeight := height - headerLines
+	if itemsHeight < 1 {
+		itemsHeight = 1
 	}
 
-	// Calculate inner width for wrapping
-	// Width - Border(2) - Padding(2) = Width - 4
-	innerWidth := max(width-4, 1)
+	innerWidth := max(width-2, 1) // 1 char padding on each side for content
 
 	// Apply filter to sections for active column
 	sections := m.getEffectiveSections(col)
 
 	logDebug(
 		"renderColumn: width=%d, innerWidth=%d, height=%d, isActive=%v, sections=%d",
-		width,
-		innerWidth,
-		height,
-		isActive,
-		len(sections),
+		width, innerWidth, height, isActive, len(sections),
 	)
 
 	var content strings.Builder
 	itemIndex := 0
 	linesUsed := 0
 
-	// Helper style for wrapping document content
 	wrapper := lipgloss.NewStyle().Width(innerWidth)
 
-	// Render sections
 	for _, section := range sections {
 		if section.hidden {
 			continue
 		}
 
-		// Section header
-		// Truncate title if needed to ensure 1 line
-		title := section.title
-		if len(title) > innerWidth {
-			title = title[:innerWidth-3] + "..."
+		// Section header (subtle label)
+		if section.title != "Documents" || col.isDoc {
+			sTitle := section.title
+			if len(sTitle) > innerWidth {
+				sTitle = sTitle[:innerWidth-3] + "..."
+			}
+			content.WriteString(sectionHeaderStyle.Render(sTitle))
+			content.WriteString("\n")
+			linesUsed++
 		}
-		headerStr := sectionHeaderStyle.Render(title)
-		content.WriteString(headerStr)
-		content.WriteString("\n")
-		linesUsed++
 
-		// Section items
 		if section.title == "Data" {
-			// Special rendering for Data section (tree view)
-			// Pass current itemIndex pointer to track global index in column
 			idx := itemIndex
 			used := m.renderTreeNodes(
-				section.items,
-				0,
-				col.cursor,
-				&idx,
-				&content,
-				wrapper,
-				innerWidth,
+				section.items, 0, col.cursor, &idx, &content, wrapper, innerWidth, isActive,
 			)
 			linesUsed += used
 			itemIndex = idx
 		} else {
-			// Standard list rendering
 			for _, item := range section.items {
 				prefix := "  "
-				if itemIndex == col.cursor {
-					prefix = "> "
+				if itemIndex == col.cursor && isActive {
+					prefix = cursorBarStyle.Render("▌") + " "
 				}
 
-				// Visual selection marker
-				selMark := " "
+				selMark := ""
 				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
-					selMark = "●"
+					selMark = "● "
 				}
 
-				extraChars := 4
-				availWidth := max(innerWidth-extraChars, 5)
-
+				availWidth := max(innerWidth-lipgloss.Width(prefix)-lipgloss.Width(selMark)-1, 5)
 				displayID := item.id
 				if len(displayID) > availWidth {
 					displayID = displayID[:availWidth-3] + "..."
 				}
 
-				line := fmt.Sprintf("%s%s%s", prefix, selMark, displayID)
+				// Use · prefix for items in document sections
+				dot := ""
+				if col.isDoc && section.title != "Data" {
+					dot = "· "
+				}
+
+				line := fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, displayID)
 				if item.isMissing {
-					line = fmt.Sprintf("%s%s%s", prefix, selMark, missingDocStyle.Render(displayID+" (no data)"))
+					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+" (no data)"))
 				}
 
 				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
 					line = visualSelectedStyle.Render(line)
-				} else if itemIndex == col.cursor {
-					line = selectedItemStyle.Render(
-						fmt.Sprintf("%s%s%s", prefix, selMark, displayID),
-					)
-					if item.isMissing {
-						line = selectedItemStyle.Render(
-							fmt.Sprintf("%s%s%s (no data)", prefix, selMark, displayID),
-						)
-					}
+				} else if itemIndex == col.cursor && isActive {
+					line = selectedItemStyle.Render(line)
 				}
 
 				content.WriteString(line)
@@ -513,8 +444,7 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 		linesUsed++
 	}
 
-	// If this is a document column, render document content (RAW JSON fallback/debug)
-	// We only show this if we DON'T have a Data section (which we should always have now)
+	// Raw JSON fallback for document columns without Data section
 	hasDataSection := false
 	for _, s := range sections {
 		if s.title == "Data" {
@@ -524,16 +454,9 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 	}
 
 	if col.isDoc && col.docContent != "" && !hasDataSection {
-		// Calculate remaining space for document content
-		remainingLines := height - linesUsed - 2 // Leave 2 lines margin
-		logDebug(
-			"DOCUMENT CONTENT: height=%d, linesUsed=%d, remainingLines=%d",
-			height,
-			linesUsed,
-			remainingLines,
-		)
+		remainingLines := itemsHeight - linesUsed - 2
+		logDebug("DOCUMENT CONTENT: height=%d, linesUsed=%d, remainingLines=%d", height, linesUsed, remainingLines)
 
-		// Always render document content if we are in a doc column
 		if remainingLines > 2 {
 			headerStr := sectionHeaderStyle.Render("Document Content")
 			wrappedHeader := wrapper.Render(headerStr)
@@ -542,152 +465,157 @@ func (m Model) renderColumn(col Column, width int, isActive bool) string {
 			linesUsed += strings.Count(wrappedHeader, "\n") + 1
 			remainingLines -= strings.Count(wrappedHeader, "\n") + 1
 
-			// Wrap the document content to the inner width
 			wrappedDoc := wrapper.Render(col.docContent)
 			docLines := strings.Split(wrappedDoc, "\n")
-			logDebug(
-				"DOCUMENT CONTENT: original docLines=%d, remainingLines=%d",
-				len(docLines),
-				remainingLines,
-			)
+			logDebug("DOCUMENT CONTENT: original docLines=%d, remainingLines=%d", len(docLines), remainingLines)
 
-			// We don't truncate anymore because scrolling will handle visibility
 			content.WriteString(strings.Join(docLines, "\n"))
 			linesUsed += len(docLines)
 			logDebug("DOCUMENT CONTENT: after adding doc, linesUsed=%d", linesUsed)
-		} else {
-			logDebug("DOCUMENT CONTENT: SKIPPED - not enough space (remainingLines=%d)", remainingLines)
 		}
 	}
 
-	// Apply column style
+	// Apply scrolling
 	columnContent := content.String()
 	if len(columnContent) == 0 {
 		columnContent = "No items"
 	}
 
-	logDebug(
-		"Before scrolling: linesUsed=%d, contentLines=%d, height=%d",
-		linesUsed,
-		strings.Count(columnContent, "\n")+1,
-		height,
-	)
-
-	// Apply scrolling - show only the visible portion
 	lines := strings.Split(columnContent, "\n")
 	totalLines := len(lines)
 
-	// Calculate bounds
-	maxScroll := max(totalLines-height, 0)
-
-	// Use scroll offset (bounds are enforced in scroll functions)
+	maxScroll := max(totalLines-itemsHeight, 0)
 	scrollOffset := min(max(col.scrollOffset, 0), maxScroll)
 
-	// Extract visible lines based on scroll position
 	startLine := scrollOffset
-	endLine := min(scrollOffset+height, totalLines)
-
+	endLine := min(scrollOffset+itemsHeight, totalLines)
 	visibleLines := lines[startLine:endLine]
 
-	// Final safety check - ensure we never exceed height
-	if len(visibleLines) > height {
-		visibleLines = visibleLines[:height]
+	if len(visibleLines) > itemsHeight {
+		visibleLines = visibleLines[:itemsHeight]
 	}
 
-	// Add scroll indicators if needed
-	if scrollOffset > 0 {
-		// Can scroll up - add indicator at top
-		if len(visibleLines) > 0 {
-			visibleLines[0] = "▲ " + visibleLines[0]
-		}
+	if scrollOffset > 0 && len(visibleLines) > 0 {
+		visibleLines[0] = "▲ " + visibleLines[0]
 	}
-	if scrollOffset < maxScroll {
-		// Can scroll down - add indicator at bottom
-		if len(visibleLines) > 0 {
-			visibleLines[len(visibleLines)-1] = "▼ " + visibleLines[len(visibleLines)-1]
-		}
+	if scrollOffset < maxScroll && len(visibleLines) > 0 {
+		visibleLines[len(visibleLines)-1] = "▼ " + visibleLines[len(visibleLines)-1]
 	}
 
-	columnContent = strings.Join(visibleLines, "\n")
+	scrolledContent := strings.Join(visibleLines, "\n")
 
-	// Apply border style
-	finalLineCount := strings.Count(columnContent, "\n") + 1
-	logDebug(
-		"About to render with lipgloss: width=%d, height=%d, visibleLines=%d, finalLineCount=%d",
-		width,
-		height,
-		len(visibleLines),
-		finalLineCount,
-	)
+	// Combine header + scrolled content
+	finalContent := headerBuf.String() + scrolledContent
 
-	var result string
-	defer func() {
-		if r := recover(); r != nil {
-			logDebug("PANIC in lipgloss render: %v", r)
-			logDebug(
-				"width=%d, height=%d, isActive=%v, contentLen=%d",
-				width,
-				height,
-				isActive,
-				len(columnContent),
-			)
-			// Return a simple string instead of panicking
-			result = fmt.Sprintf("Error rendering column (w=%d,h=%d)", width, height)
-		}
-	}()
-
-	// Always set explicit height on the style to ensure full height columns
-	if isActive {
-		result = activeColumnStyle.Width(width).Height(height).Render(columnContent)
-	} else {
-		result = inactiveColumnStyle.Width(width).Height(height).Render(columnContent)
-	}
-
-	resultLineCount := strings.Count(result, "\n") + 1
-	logDebug(
-		"Lipgloss render successful - input lines: %d, output lines: %d, expected max: %d",
-		finalLineCount,
-		resultLineCount,
-		height,
-	)
-
-	if resultLineCount > height+4 {
-		logDebug("WARNING: Output exceeds expected height by %d lines!", resultLineCount-(height+4))
-	}
-
-	return result
+	// Render with fixed dimensions (no border)
+	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
 }
 
-func (m Model) renderPreviewPane(width int) string {
-	height := m.height - 5 - 2
-	if height < 1 {
-		height = 10
+// renderTreeNodes renders tree nodes recursively
+func (m Model) renderTreeNodes(
+	nodes []ListItem,
+	level int,
+	cursor int,
+	itemIndex *int,
+	content *strings.Builder,
+	wrapper lipgloss.Style,
+	innerWidth int,
+	isActive bool,
+) int {
+	linesUsed := 0
+
+	for _, node := range nodes {
+		prefix := strings.Repeat("  ", level)
+
+		cursorMarker := "  "
+		if *itemIndex == cursor && isActive {
+			cursorMarker = cursorBarStyle.Render("▌") + " "
+		}
+
+		icon := " "
+		if node.dataType == "object" || node.dataType == "array" {
+			if node.expanded {
+				icon = "▼"
+			} else {
+				icon = "▶"
+			}
+		}
+
+		keyStr := treeKeyStyle.Render(node.key)
+
+		valStr := ""
+		switch node.dataType {
+		case "string":
+			valStr = treeStringStyle.Render(fmt.Sprintf("%q", node.valueStr))
+		case "number":
+			valStr = treeNumberStyle.Render(node.valueStr)
+		case "bool":
+			valStr = treeBoolStyle.Render(node.valueStr)
+		case "null":
+			valStr = treeNullStyle.Render("null")
+		case "object", "array":
+			if node.dataType == "array" {
+				valStr = treeTypeStyle.Render(fmt.Sprintf("[%d]", len(node.children)))
+			} else {
+				valStr = treeTypeStyle.Render("{}")
+			}
+		default:
+			valStr = node.valueStr
+		}
+
+		lineStr := fmt.Sprintf("%s%s%s %s: %s", cursorMarker, prefix, icon, keyStr, valStr)
+
+		if *itemIndex == cursor && isActive {
+			lineStr = lipgloss.NewStyle().Bold(true).Render(lineStr)
+		}
+
+		wrappedLine := wrapper.Render(lineStr)
+		content.WriteString(wrappedLine)
+		content.WriteString("\n")
+		linesUsed += strings.Count(wrappedLine, "\n") + 1
+
+		*itemIndex++
+
+		if node.expanded && len(node.children) > 0 {
+			linesUsed += m.renderTreeNodes(
+				node.children, level+1, cursor, itemIndex, content, wrapper, innerWidth, isActive,
+			)
+		}
 	}
 
-	innerWidth := max(width-4, 1)
-	var content strings.Builder
+	return linesUsed
+}
 
-	// Title
+func (m Model) renderPreviewPane(width, height int) string {
+	innerWidth := max(width-2, 1)
+	var headerBuf strings.Builder
+
 	parts := strings.Split(m.previewPath, "/")
 	title := m.previewPath
 	if len(parts) > 0 {
 		title = parts[len(parts)-1]
 	}
-	content.WriteString(sectionHeaderStyle.Render("Preview: " + title))
-	content.WriteString("\n")
 
+	headerBuf.WriteString(columnTitleStyle.Render("Preview: " + title))
+	headerBuf.WriteString("\n")
+	underlineLen := min(lipgloss.Width("Preview: "+title), width)
+	headerBuf.WriteString(columnUnderlineStyle.Render(strings.Repeat("─", underlineLen)))
+	headerBuf.WriteString("\n")
+
+	var content strings.Builder
 	wrapper := lipgloss.NewStyle().Width(innerWidth)
 	itemIndex := 0
-	m.renderTreeNodes(m.previewNodes, 0, -1, &itemIndex, &content, wrapper, innerWidth)
+	m.renderTreeNodes(m.previewNodes, 0, -1, &itemIndex, &content, wrapper, innerWidth, false)
 
+	itemsHeight := height - 2
 	columnContent := content.String()
 	lines := strings.Split(columnContent, "\n")
-	if len(lines) > height {
-		lines = lines[:height]
+	if len(lines) > itemsHeight {
+		lines = lines[:itemsHeight]
 	}
-	columnContent = strings.Join(lines, "\n")
 
-	return previewStyle.Width(width).Height(height).Render(columnContent)
+	finalContent := headerBuf.String() + strings.Join(lines, "\n")
+	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
 }
 
 // getFooterHints returns context-sensitive keybinding hints
@@ -711,38 +639,11 @@ func (m Model) getFooterHints() string {
 	case ModeCommand:
 		return "Esc: Normal mode"
 	default:
-		return "j/k: Up/Down  h/l: Back/Forward  g/G: Top/Bottom  /: Filter  s: Sort  e: Edit  d: Delete  yy: Copy  :: Command  q: Quit"
+		return "j/k ↕  h/l ↔  g/G Top/Bottom  / Filter  s Sort  e Edit  d Del  yy Copy  : Cmd  q Quit"
 	}
 }
 
-// renderStatusBar renders the status bar area between columns and footer
+// renderStatusBar is kept for compatibility but status is now merged into footer
 func (m Model) renderStatusBar() string {
-	var parts []string
-
-	// Show pagination info and active query for active collection column
-	if m.activeColumn < len(m.columns) {
-		col := m.columns[m.activeColumn]
-		if !col.isDoc && col.docCount > 0 {
-			info := fmt.Sprintf("%d docs | limit: %d", col.docCount, m.pageLimit)
-			parts = append(parts, info)
-		}
-		if col.activeQuery != nil {
-			parts = append(parts, "Query: "+col.activeQuery.String())
-		}
-	}
-
-	// Show active filter
-	if m.filterActive && m.filterPattern != "" {
-		parts = append(parts, "Filter: "+m.filterPattern)
-	}
-
-	// Show preview mode
-	if m.previewEnabled {
-		parts = append(parts, "Preview: ON")
-	}
-
-	if len(parts) > 0 {
-		return statusBarStyle.Render(strings.Join(parts, "  "))
-	}
-	return statusBarStyle.Render("")
+	return ""
 }

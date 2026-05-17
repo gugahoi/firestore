@@ -28,6 +28,7 @@ const (
 	OverlaySortDialog
 	OverlayDeleteConfirm
 	OverlayFilter
+	OverlayInfo
 )
 
 func (m Mode) String() string {
@@ -109,6 +110,9 @@ type Model struct {
 	filterInput   textinput.Model
 	filterActive  bool
 	filterPattern string
+
+	// Info overlay (for :help, :marks, etc.)
+	infoContent string
 }
 
 // sortStateEntry stores sort configuration for a collection path

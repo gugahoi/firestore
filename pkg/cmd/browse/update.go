@@ -88,9 +88,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update viewport sizes for document columns
 		for i := range m.columns {
 			if m.columns[i].isDoc && m.columns[i].docContent != "" {
-				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 7 // Account for header and footer
-				vpWidth := colWidth - 4
+				colWidth := calculateColumnWidth(m.width-4, len(m.columns))
+				colHeight := m.itemViewHeight()
+				vpWidth := colWidth - 2
 				vpHeight := colHeight - 10
 				// Ensure minimum viewport dimensions (at least 20x5)
 				if vpWidth >= 20 && vpHeight >= 5 {
@@ -145,10 +145,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Initialize viewport if this is a document column
 			// Only create viewport if we have valid dimensions
 			if m.columns[msg.columnIndex].isDoc && msg.docContent != "" && m.width > 0 && m.height > 0 {
-				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 7
-				// Ensure minimum viewport dimensions (at least 20x5)
-				vpWidth := colWidth - 4
+				colWidth := calculateColumnWidth(m.width-4, len(m.columns))
+				colHeight := m.itemViewHeight()
+				vpWidth := colWidth - 2
 				vpHeight := colHeight - 10
 				if vpWidth >= 20 && vpHeight >= 5 {
 					m.columns[msg.columnIndex].viewport = viewport.New(vpWidth, vpHeight)
@@ -748,6 +747,15 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case OverlayInfo:
+		switch msg.String() {
+		case "esc", "q", "enter":
+			m.overlay = OverlayNone
+			m.infoContent = ""
+			return m, nil
+		}
+		return m, nil
+
 	case OverlayFilter:
 		switch msg.String() {
 		case "esc":
@@ -863,8 +871,13 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if statusText != "" {
-			m.statusMsg = statusText
-			m.statusMsgTime = time.Now()
+			if strings.Contains(statusText, "\n") {
+				m.overlay = OverlayInfo
+				m.infoContent = statusText
+			} else {
+				m.statusMsg = statusText
+				m.statusMsgTime = time.Now()
+			}
 		}
 
 		// Check if the handler set a pending editor launch

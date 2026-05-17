@@ -20,6 +20,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		logDebug("KeyMsg received: %s (mode=%s, overlay=%d)", msg.String(), m.mode, m.overlay)
 
+		// Dismiss notification on any keypress
+		if m.statusMsg != "" {
+			m.statusMsg = ""
+		}
+
 		// Handle overlays first (dialogs on top of any mode)
 		if m.overlay != OverlayNone {
 			return m.handleOverlay(msg)

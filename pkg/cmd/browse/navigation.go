@@ -319,6 +319,12 @@ func (m *Model) scrollDown() {
 	}
 
 	col.scrollOffset += pageSize
+
+	totalItems := m.getAllItemsCount(*col)
+	col.cursor += pageSize
+	if col.cursor >= totalItems {
+		col.cursor = totalItems - 1
+	}
 }
 
 // scrollUp scrolls the active column up by half a page
@@ -338,6 +344,11 @@ func (m *Model) scrollUp() {
 	col.scrollOffset -= pageSize
 	if col.scrollOffset < 0 {
 		col.scrollOffset = 0
+	}
+
+	col.cursor -= pageSize
+	if col.cursor < 0 {
+		col.cursor = 0
 	}
 }
 

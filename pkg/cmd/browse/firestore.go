@@ -391,12 +391,13 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			}
 		}
 
-		// Count documents in sections
+		// Count queried documents (exclude missing refs and sentinel — docCount
+		// is used as the Firestore query Offset for pagination)
 		totalDocs := 0
 		for _, s := range sections {
 			if s.title == "Documents" {
 				for _, item := range s.items {
-					if item.path != "__load_more__" {
+					if item.path != "__load_more__" && !item.isMissing {
 						totalDocs++
 					}
 				}

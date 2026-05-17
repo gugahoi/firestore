@@ -411,7 +411,11 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 					selMark = "● "
 				}
 
-				availWidth := max(innerWidth-lipgloss.Width(prefix)-lipgloss.Width(selMark)-1, 5)
+				suffix := ""
+				if item.isMissing {
+					suffix = " (no data)"
+				}
+				availWidth := max(innerWidth-lipgloss.Width(prefix)-lipgloss.Width(selMark)-len(suffix)-1, 5)
 				displayID := item.id
 				if len(displayID) > availWidth {
 					displayID = displayID[:availWidth-3] + "..."
@@ -423,9 +427,9 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 					dot = "· "
 				}
 
-				line := fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, displayID)
+				line := fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, displayID+suffix)
 				if item.isMissing {
-					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+" (no data)"))
+					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+suffix))
 				}
 
 				if m.mode == ModeVisual && isActive && m.selection.IsSelected(itemIndex) {

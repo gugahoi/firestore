@@ -152,9 +152,15 @@ func (m *Model) autoScroll() {
 	col := &m.columns[m.activeColumn]
 	viewHeight := m.itemViewHeight()
 
-	// Calculate column width and inner width (same as in renderColumn)
+	// Calculate column width and inner width (must match renderColumns)
 	visibleCols := getVisibleColumns(m.columns, m.activeColumn)
-	availWidth := m.width - 4 // 2 padding on each side
+	sepWidth := 3
+	margin := 4
+	availWidth := m.width - margin
+	if m.previewEnabled && len(m.previewNodes) > 0 {
+		previewWidth := (m.width - margin) / 3
+		availWidth -= previewWidth + sepWidth
+	}
 	colWidth := calculateColumnWidth(availWidth, len(visibleCols))
 	innerWidth := max(colWidth-2, 1)
 
@@ -207,8 +213,15 @@ func (m *Model) autoScroll() {
 
 					keyStr := node.key
 					valStr := node.valueStr
-					if node.dataType == "string" {
-						valStr = fmt.Sprintf("\"%s\"", valStr)
+					switch node.dataType {
+					case "string":
+						valStr = fmt.Sprintf("%q", valStr)
+					case "null":
+						valStr = "null"
+					case "object":
+						valStr = "{}"
+					case "array":
+						valStr = fmt.Sprintf("[%d]", len(node.children))
 					}
 
 					lineStr := fmt.Sprintf("%s%s%s %s: %s", cursorMarker, prefix, icon, keyStr, valStr)
@@ -230,21 +243,15 @@ func (m *Model) autoScroll() {
 				break
 			}
 		} else {
-			// Linear list logic
+			// Linear list logic — each item is always 1 rendered line
+			// (renderColumn truncates long IDs rather than wrapping)
 			for _, item := range section.items {
-				// Check if this is the cursor item BEFORE incrementing cursorLine
 				if itemIndex == col.cursor {
-					// Found cursor position
 					foundCursor = true
 					break
 				}
-
-				prefix := "  "
-				line := fmt.Sprintf("%s%s", prefix, item.id)
-				wrappedLine := wrapper.Render(line)
-				actualLines := strings.Count(wrappedLine, "\n") + 1
-				cursorLine += actualLines
-
+				_ = item
+				cursorLine++
 				itemIndex++
 			}
 			if foundCursor {

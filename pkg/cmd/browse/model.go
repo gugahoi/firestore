@@ -67,6 +67,7 @@ type Model struct {
 	commandResult   string
 	pendingFetch    *pendingFetchCmd
 	pendingEditor   tea.Cmd
+	pendingQuit     bool
 
 	// Sort dialog
 	sortDialog sortDialogModel

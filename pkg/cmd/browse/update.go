@@ -884,6 +884,10 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.pendingQuit {
+			return m, tea.Quit
+		}
+
 		// Check if the handler set a pending editor launch
 		if m.pendingEditor != nil {
 			cmd := m.pendingEditor

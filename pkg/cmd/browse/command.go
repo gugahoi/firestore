@@ -83,6 +83,13 @@ func initCommandRegistry() *CommandRegistry {
 	r := NewCommandRegistry()
 
 	r.Register(Command{
+		Name:        "quit",
+		Description: "Quit the application",
+		Usage:       ":quit",
+		Handler:     cmdQuit,
+	})
+
+	r.Register(Command{
 		Name:        "help",
 		Description: "List all available commands",
 		Usage:       ":help",
@@ -146,6 +153,11 @@ func initCommandRegistry() *CommandRegistry {
 	})
 
 	return r
+}
+
+func cmdQuit(m *Model, args []string) (string, error) {
+	m.pendingQuit = true
+	return "", nil
 }
 
 func cmdHelp(m *Model, args []string) (string, error) {

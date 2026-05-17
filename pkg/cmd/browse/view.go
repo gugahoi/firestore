@@ -508,7 +508,7 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 	finalContent := headerBuf.String() + scrolledContent
 
 	// Render with fixed dimensions (no border)
-	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(finalContent)
 }
 
 // renderTreeNodes renders tree nodes recursively
@@ -615,7 +615,7 @@ func (m Model) renderPreviewPane(width, height int) string {
 	}
 
 	finalContent := headerBuf.String() + strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(finalContent)
 }
 
 // getFooterHints returns context-sensitive keybinding hints

@@ -407,11 +407,15 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 				}
 
 				selMark := ""
-				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+				if m.mode == ModeVisual && isActive && m.selection.IsSelected(itemIndex) {
 					selMark = "● "
 				}
 
-				availWidth := max(innerWidth-lipgloss.Width(prefix)-lipgloss.Width(selMark)-1, 5)
+				suffix := ""
+				if item.isMissing {
+					suffix = " (no data)"
+				}
+				availWidth := max(innerWidth-lipgloss.Width(prefix)-lipgloss.Width(selMark)-len(suffix)-1, 5)
 				displayID := item.id
 				if len(displayID) > availWidth {
 					displayID = displayID[:availWidth-3] + "..."
@@ -423,12 +427,12 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 					dot = "· "
 				}
 
-				line := fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, displayID)
+				line := fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, displayID+suffix)
 				if item.isMissing {
-					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+" (no data)"))
+					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+suffix))
 				}
 
-				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+				if m.mode == ModeVisual && isActive && m.selection.IsSelected(itemIndex) {
 					line = visualSelectedStyle.Render(line)
 				} else if itemIndex == col.cursor && isActive {
 					line = selectedItemStyle.Render(line)
@@ -508,7 +512,7 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 	finalContent := headerBuf.String() + scrolledContent
 
 	// Render with fixed dimensions (no border)
-	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(finalContent)
 }
 
 // renderTreeNodes renders tree nodes recursively
@@ -615,7 +619,7 @@ func (m Model) renderPreviewPane(width, height int) string {
 	}
 
 	finalContent := headerBuf.String() + strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(width).Height(height).Render(finalContent)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(finalContent)
 }
 
 // getFooterHints returns context-sensitive keybinding hints

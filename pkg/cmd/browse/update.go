@@ -421,8 +421,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	// Quit
-	case "q", "esc", "ctrl+c":
+	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "esc":
+		m.statusMsg = "Press q to quit"
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
 
 	// Vertical navigation (within column)
 	case "j", "down":

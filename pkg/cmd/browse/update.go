@@ -842,7 +842,7 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 // handleCommandMode processes input in command mode
 func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
+	case "esc", "ctrl+c":
 		m.mode = ModeNormal
 		m.commandInput.Blur()
 		m.commandInput.Reset()

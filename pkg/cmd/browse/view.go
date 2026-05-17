@@ -407,7 +407,7 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 				}
 
 				selMark := ""
-				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+				if m.mode == ModeVisual && isActive && m.selection.IsSelected(itemIndex) {
 					selMark = "● "
 				}
 
@@ -428,7 +428,7 @@ func (m Model) renderColumn(col Column, width, height int, isActive bool) string
 					line = fmt.Sprintf("%s%s%s%s", prefix, selMark, dot, missingDocStyle.Render(displayID+" (no data)"))
 				}
 
-				if m.mode == ModeVisual && m.selection.IsSelected(itemIndex) {
+				if m.mode == ModeVisual && isActive && m.selection.IsSelected(itemIndex) {
 					line = visualSelectedStyle.Render(line)
 				} else if itemIndex == col.cursor && isActive {
 					line = selectedItemStyle.Render(line)

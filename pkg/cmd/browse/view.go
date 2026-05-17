@@ -110,14 +110,9 @@ func (m Model) View() string {
 	// Footer: context-sensitive hints or command input
 	var footer string
 	if m.mode == ModeCommand {
-		commandLine := m.commandInput.View()
+		footer = m.commandInput.View()
 		if m.commandResult != "" {
-			footer = lipgloss.JoinVertical(lipgloss.Left,
-				footerStyle.Render(m.commandResult),
-				commandLine,
-			)
-		} else {
-			footer = commandLine
+			separatorLine = "  " + footerStyle.Render(m.commandResult)
 		}
 	} else if m.overlay == OverlayFilter {
 		footer = m.filterInput.View()

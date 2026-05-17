@@ -113,7 +113,8 @@ type Model struct {
 	filterPattern string
 
 	// Info overlay (for :help, :marks, etc.)
-	infoContent string
+	infoContent  string
+	infoViewport viewport.Model
 }
 
 // sortStateEntry stores sort configuration for a collection path

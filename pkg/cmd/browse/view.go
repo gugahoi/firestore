@@ -138,11 +138,16 @@ func (m Model) View() string {
 
 	// Overlay dialogs — all centered over the main layout
 	if m.overlay == OverlayInfo {
+		scrollHint := "Esc/q: close"
+		if m.infoViewport.TotalLineCount() > m.infoViewport.VisibleLineCount() {
+			pct := m.infoViewport.ScrollPercent() * 100
+			scrollHint = fmt.Sprintf("j/k: scroll  (%0.f%%)  Esc/q: close", pct)
+		}
 		dialogContent := lipgloss.JoinVertical(
 			lipgloss.Left,
-			m.infoContent,
-			"",
-			footerStyle.Render("Esc/q/Enter: close"),
+			m.infoViewport.View(),
+			footerSepStyle.Render(strings.Repeat("─", m.infoViewport.Width)),
+			footerStyle.Render(scrollHint),
 		)
 		dialog := infoDialogStyle.Render(dialogContent)
 		return lipgloss.Place(

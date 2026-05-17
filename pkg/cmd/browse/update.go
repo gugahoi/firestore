@@ -758,12 +758,14 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case OverlayInfo:
 		switch msg.String() {
-		case "esc", "q", "enter":
+		case "esc", "q":
 			m.overlay = OverlayNone
 			m.infoContent = ""
 			return m, nil
 		}
-		return m, nil
+		var cmd tea.Cmd
+		m.infoViewport, cmd = m.infoViewport.Update(msg)
+		return m, cmd
 
 	case OverlayFilter:
 		switch msg.String() {
@@ -883,6 +885,10 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if strings.Contains(statusText, "\n") {
 				m.overlay = OverlayInfo
 				m.infoContent = statusText
+				vpWidth := min(m.width-8, 72)
+				vpHeight := min(m.height-8, strings.Count(statusText, "\n")+1)
+				m.infoViewport = viewport.New(vpWidth, vpHeight)
+				m.infoViewport.SetContent(statusText)
 			} else {
 				m.statusMsg = statusText
 				m.statusMsgTime = time.Now()

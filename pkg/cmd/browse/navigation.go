@@ -338,6 +338,10 @@ func (m *Model) scrollUp() {
 func (m *Model) addColumn(path string, isDoc bool) {
 	logDebug("addColumn called: path='%s', isDoc=%v, currentColumns=%d", path, isDoc, len(m.columns))
 
+	// Clear any active filter since it only applies to the current column
+	m.filterActive = false
+	m.filterPattern = ""
+
 	// Remove all columns to the right of active column
 	m.columns = m.columns[:m.activeColumn+1]
 
@@ -362,6 +366,10 @@ func (m *Model) removeLastColumn() {
 	if len(m.columns) <= 1 {
 		return
 	}
+
+	// Clear any active filter since it only applies to the current column
+	m.filterActive = false
+	m.filterPattern = ""
 
 	m.columns = m.columns[:len(m.columns)-1]
 	m.activeColumn = len(m.columns) - 1

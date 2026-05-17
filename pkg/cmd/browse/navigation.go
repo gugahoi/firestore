@@ -135,6 +135,14 @@ func (m *Model) moveCursor(delta int) {
 	}
 }
 
+func (m *Model) itemViewHeight() int {
+	h := m.height - 7 // outer chrome(5): header, blank, separator, status, footer; column header(2): title, underline
+	if h < 1 {
+		return 10
+	}
+	return h
+}
+
 // autoScroll adjusts scroll offset to keep cursor visible
 func (m *Model) autoScroll() {
 	if m.activeColumn >= len(m.columns) {
@@ -142,16 +150,13 @@ func (m *Model) autoScroll() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	// Match height calculation in view.go: m.height - 5 (header/statusbar/footer/error/margin) - 2 (borders)
-	viewHeight := m.height - 7
-	if viewHeight < 1 {
-		viewHeight = 10
-	}
+	viewHeight := m.itemViewHeight()
 
 	// Calculate column width and inner width (same as in renderColumn)
 	visibleCols := getVisibleColumns(m.columns, m.activeColumn)
-	colWidth := calculateColumnWidth(m.width, len(visibleCols))
-	innerWidth := max(colWidth-4, 1)
+	availWidth := m.width - 4 // 2 padding on each side
+	colWidth := calculateColumnWidth(availWidth, len(visibleCols))
+	innerWidth := max(colWidth-2, 1)
 
 	// Create wrapper for measuring wrapped line lengths
 	wrapper := lipgloss.NewStyle().Width(innerWidth)
@@ -167,8 +172,10 @@ func (m *Model) autoScroll() {
 		if section.hidden {
 			continue
 		}
-		// Section header takes 1 line
-		cursorLine++
+		// Section header takes 1 line (but "Documents" is skipped for collection columns)
+		if section.title != "Documents" || col.isDoc {
+			cursorLine++
+		}
 
 		if section.title == "Data" {
 			// Tree view logic - we need to traverse the tree to find where the cursor lands
@@ -297,19 +304,14 @@ func (m *Model) scrollDown() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	viewHeight := m.height - 7
-	if viewHeight < 1 {
-		viewHeight = 10
-	}
+	viewHeight := m.itemViewHeight()
 
-	pageSize := viewHeight / 2 // Half page scroll
+	pageSize := viewHeight / 2
 	if pageSize < 1 {
 		pageSize = 1
 	}
 
 	col.scrollOffset += pageSize
-	// Upper bound will be checked in renderColumn, but we can't check it here
-	// because we don't know the full content length until render time.
 }
 
 // scrollUp scrolls the active column up by half a page
@@ -319,10 +321,7 @@ func (m *Model) scrollUp() {
 	}
 
 	col := &m.columns[m.activeColumn]
-	viewHeight := m.height - 7
-	if viewHeight < 1 {
-		viewHeight = 10
-	}
+	viewHeight := m.itemViewHeight()
 
 	pageSize := viewHeight / 2 // Half page scroll
 	if pageSize < 1 {
@@ -370,7 +369,6 @@ func (m *Model) removeLastColumn() {
 
 // calculateColumnWidth calculates the width for each column
 func calculateColumnWidth(termWidth int, numColumns int) int {
-	// Show max 4 columns at a time
 	visibleCols := numColumns
 	if visibleCols > 4 {
 		visibleCols = 4
@@ -380,10 +378,11 @@ func calculateColumnWidth(termWidth int, numColumns int) int {
 		return termWidth
 	}
 
-	// Account for borders and padding
-	width := (termWidth - (visibleCols * 4)) / visibleCols
+	// Separators between columns: " │ " = 3 chars each
+	separatorWidth := (visibleCols - 1) * 3
+	width := (termWidth - separatorWidth) / visibleCols
 	if width < 10 {
-		width = 10 // Minimum width
+		width = 10
 	}
 	return width
 }

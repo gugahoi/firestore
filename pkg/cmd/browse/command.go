@@ -83,6 +83,20 @@ func initCommandRegistry() *CommandRegistry {
 	r := NewCommandRegistry()
 
 	r.Register(Command{
+		Name:        "quit",
+		Description: "Quit the application",
+		Usage:       ":quit",
+		Handler:     cmdQuit,
+	})
+
+	r.Register(Command{
+		Name:        "man",
+		Description: "Show the full manual",
+		Usage:       ":man",
+		Handler:     cmdMan,
+	})
+
+	r.Register(Command{
 		Name:        "help",
 		Description: "List all available commands",
 		Usage:       ":help",
@@ -148,12 +162,127 @@ func initCommandRegistry() *CommandRegistry {
 	return r
 }
 
+func cmdMan(m *Model, args []string) (string, error) {
+	return `FIRESTORE BROWSE — MANUAL
+
+OVERVIEW
+  A vim-style TUI for browsing Firestore databases.
+  Navigate collections and documents using Miller columns.
+
+MODES
+  NORMAL    Default mode. Navigate, view, and operate on data.
+  VISUAL    Select multiple items for bulk operations.
+  COMMAND   Enter commands with : prefix.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NAVIGATION
+
+  j / ↓           Move cursor down
+  k / ↑           Move cursor up
+  g               Jump to top of column
+  G               Jump to bottom of column
+  l / → / Enter   Navigate forward (open collection/document)
+  h / ← / Bksp    Navigate back (close column / collapse node)
+  Space           Toggle expand/collapse on tree node
+
+  Ctrl+d / PgDn   Scroll down (half page)
+  Ctrl+u / PgUp   Scroll up (half page)
+
+  Ctrl+g          Go to path (opens path input dialog)
+  /               Filter current column (substring match)
+
+  Ctrl+o          Jump back in history
+  Ctrl+i          Jump forward in history
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MARKS & BOOKMARKS
+
+  m + [a-z]       Set a mark at current location
+  ' + [a-z]       Jump to a mark
+
+  :marks          List all set marks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TREE VIEW CONTROLS
+
+  zM              Fold all (collapse entire tree)
+  zR              Unfold all (expand entire tree)
+  z1              Fold to depth 1
+  z2              Fold to depth 2
+  z3              Fold to depth 3
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENT OPERATIONS
+
+  e               Edit document (opens $EDITOR)
+  d               Delete document (with confirmation)
+  r               Refresh current column
+  p               Toggle preview pane
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLIPBOARD / COPY
+
+  yy              Copy selected value (field value or path)
+  ya              Copy entire document as JSON
+  Y               Copy ID or field key
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SORT & QUERY
+
+  s               Open sort dialog
+  S               Clear sort for current collection
+
+  :sort <f> [dir]       Sort by field (asc/desc)
+  :query <f> <op> <v>   Server-side Firestore query
+                        Operators: ==  !=  <  >  <=  >=
+                                   array-contains  in
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL MODE
+
+  v               Toggle item selection / enter visual mode
+  V               Range select (anchor + move to extend)
+  j / k           Move and extend selection
+  d               Bulk delete selected documents
+  Esc             Exit visual mode
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMMANDS
+
+  :help                   List available commands
+  :man                    Show this manual
+  :quit                   Quit the application
+  :goto <path>            Navigate to a Firestore path
+  :refresh                Refresh current column
+  :sort <field> [asc|desc]  Sort collection by field
+  :query <f> <op> <val>   Filter with a server-side query
+  :set limit <n>          Set pagination limit (default: 50)
+  :export json|ndjson [f] Export documents (to file or clipboard)
+  :add [id]               Create a new document
+  :marks                  List all bookmarks
+
+  Tab in command mode autocompletes command names.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUITTING
+
+  q               Quit
+  :quit           Quit
+  Ctrl+c          Quit (except in command mode, where it cancels)
+  Esc             Shows "Press q to quit" hint`, nil
+}
+
+func cmdQuit(m *Model, args []string) (string, error) {
+	m.pendingQuit = true
+	return "", nil
+}
+
 func cmdHelp(m *Model, args []string) (string, error) {
 	var lines []string
 	for _, cmd := range m.commandRegistry.All() {
 		lines = append(lines, fmt.Sprintf("  %-20s %s", cmd.Usage, cmd.Description))
 	}
-	return "Commands:\n" + strings.Join(lines, "\n"), nil
+	return "Commands:\n" + strings.Join(lines, "\n") + "\n\nType :man for the full manual.", nil
 }
 
 func cmdGoto(m *Model, args []string) (string, error) {

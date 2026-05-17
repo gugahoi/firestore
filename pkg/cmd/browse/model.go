@@ -28,6 +28,7 @@ const (
 	OverlaySortDialog
 	OverlayDeleteConfirm
 	OverlayFilter
+	OverlayInfo
 )
 
 func (m Mode) String() string {
@@ -66,6 +67,7 @@ type Model struct {
 	commandResult   string
 	pendingFetch    *pendingFetchCmd
 	pendingEditor   tea.Cmd
+	pendingQuit     bool
 
 	// Sort dialog
 	sortDialog sortDialogModel
@@ -109,6 +111,10 @@ type Model struct {
 	filterInput   textinput.Model
 	filterActive  bool
 	filterPattern string
+
+	// Info overlay (for :help, :marks, etc.)
+	infoContent  string
+	infoViewport viewport.Model
 }
 
 // sortStateEntry stores sort configuration for a collection path

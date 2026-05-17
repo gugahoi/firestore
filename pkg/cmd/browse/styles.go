@@ -5,165 +5,186 @@ import (
 )
 
 var (
-	// Colors
-	colorCyan   = lipgloss.Color("86")
-	colorGray   = lipgloss.Color("240")
-	colorGreen  = lipgloss.Color("42")
-	colorBlue   = lipgloss.Color("39")
-	colorRed    = lipgloss.Color("196")
-	colorYellow = lipgloss.Color("220")
+	// Muted/Pastel color palette
+	colorAccent    = lipgloss.Color("75")  // Slate blue — primary accent
+	colorDim       = lipgloss.Color("243") // Gray — inactive/secondary text
+	colorSeparator = lipgloss.Color("238") // Dim gray — structural lines
+	colorHeader    = lipgloss.Color("252") // Near white — column headers
+	colorError     = lipgloss.Color("167") // Soft red
+	colorSuccess   = lipgloss.Color("108") // Sage green
+	colorWarning   = lipgloss.Color("222") // Soft yellow
 
-	// Header style
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(colorCyan).
-			Padding(0, 1)
+	// Keep color aliases used by notification overlay in view.go
+	colorGreen = lipgloss.Color("108")
+	colorGray  = lipgloss.Color("243")
 
-	// Footer style
+	// Breadcrumb header
+	headerProjectStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(colorHeader)
+
+	headerSepStyle = lipgloss.NewStyle().
+		Foreground(colorDim)
+
+	headerPathStyle = lipgloss.NewStyle().
+		Foreground(colorAccent)
+
+	// Column title
+	columnTitleStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(colorHeader)
+
+	columnTitleInactiveStyle = lipgloss.NewStyle().
+		Foreground(colorDim)
+
+	columnUnderlineStyle = lipgloss.NewStyle().
+		Foreground(colorSeparator)
+
+	// Separator between columns (vertical pipe)
+	columnSeparatorStyle = lipgloss.NewStyle().
+		Foreground(colorSeparator)
+
+	// Cursor bar for active column
+	cursorBarStyle = lipgloss.NewStyle().
+		Foreground(colorAccent).
+		Bold(true)
+
+	// Footer
+	footerSepStyle = lipgloss.NewStyle().
+		Foreground(colorSeparator)
+
 	footerStyle = lipgloss.NewStyle().
-			Foreground(colorGray).
-			Padding(0, 1)
+		Foreground(colorDim).
+		Padding(0, 2)
 
-	// Path style (for bottom of screen)
-	pathStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(colorBlue).
-			Padding(0, 1)
-
-	// Active column border
-	activeColumnStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorCyan).
-				Padding(0, 1)
-
-	// Inactive column border
-	inactiveColumnStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorGray).
-				Padding(0, 1)
-
-	// Section header style
+	// Section header (subtle label within columns)
 	sectionHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Underline(true).
-				Foreground(colorYellow)
+		Foreground(colorDim).
+		Bold(true)
 
-	// Selected item style
+	// Selected item
 	selectedItemStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("15"))
+		Bold(true).
+		Foreground(lipgloss.Color("15"))
 
 	// Document indicator style
 	docIndicatorStyle = lipgloss.NewStyle().
-				Foreground(colorGreen)
+		Foreground(colorSuccess)
 
-	// Missing document style (documents with no data, only subcollections)
+	// Missing document
 	missingDocStyle = lipgloss.NewStyle().
-			Foreground(colorGray).
-			Faint(true)
+		Foreground(colorDim).
+		Faint(true)
 
 	// Collection indicator style
 	colIndicatorStyle = lipgloss.NewStyle().
-				Foreground(colorBlue)
+		Foreground(colorAccent)
 
-	// Error message style
+	// Error message
 	errorStyle = lipgloss.NewStyle().
-			Foreground(colorRed).
-			Bold(true)
+		Foreground(colorError).
+		Bold(true)
 
-	// Loading indicator style
+	// Loading indicator
 	loadingStyle = lipgloss.NewStyle().
-			Foreground(colorYellow).
-			Italic(true)
+		Foreground(colorWarning).
+		Italic(true)
 
 	// Status message style
 	statusStyle = lipgloss.NewStyle().
-			Foreground(colorGreen).
-			Italic(true).
-			Padding(0, 1)
+		Foreground(colorSuccess).
+		Italic(true).
+		Padding(0, 2)
 
-	// Tree View Data Type Styles
+	// Tree View Data Type Styles (muted/pastel)
 	treeKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205")) // Hot Pink for keys
+		Foreground(lipgloss.Color("139")) // Lavender
 
 	treeStringStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("113")) // Green for strings
+		Foreground(lipgloss.Color("108")) // Sage green
 
 	treeNumberStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("215")) // Orange/Gold for numbers
+		Foreground(lipgloss.Color("180")) // Warm sand
 
 	treeBoolStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("33")) // Blue for booleans
+		Foreground(lipgloss.Color("110")) // Soft blue
 
 	treeNullStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")). // Dark gray for null
-			Italic(true)
+		Foreground(lipgloss.Color("242")). // Dim gray
+		Italic(true)
 
 	treeTypeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")). // Light gray for object/array type indicators
-			Italic(true)
+		Foreground(lipgloss.Color("245")). // Light gray
+		Italic(true)
 
-	// Input dialog style
+	// Dialogs (keep borders — they float over content)
+	infoDialogStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorAccent).
+		Padding(1, 3)
+
 	inputDialogStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorCyan).
-				Padding(1, 2)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorAccent).
+		Padding(1, 2)
 
-	// Sort dialog styles
 	sortDialogStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorCyan).
-			Padding(1, 2).
-			Width(50)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorAccent).
+		Padding(1, 2).
+		Width(50)
 
 	sortDirectionStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorYellow).
-				Align(lipgloss.Center)
+		Bold(true).
+		Foreground(colorWarning).
+		Align(lipgloss.Center)
 
 	sortHintStyle = lipgloss.NewStyle().
-			Foreground(colorGray).
-			Italic(true)
+		Foreground(colorDim).
+		Italic(true)
 
 	deleteDialogStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorRed).
-				Padding(1, 2).
-				Width(50)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorError).
+		Padding(1, 2).
+		Width(50)
 
 	// Mode indicator styles
 	modeNormalStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("0")).
-			Background(colorGreen).
-			Padding(0, 1)
+		Bold(true).
+		Foreground(lipgloss.Color("0")).
+		Background(colorSuccess).
+		Padding(0, 1)
 
 	modeVisualStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("0")).
-			Background(colorYellow).
-			Padding(0, 1)
+		Bold(true).
+		Foreground(lipgloss.Color("0")).
+		Background(colorWarning).
+		Padding(0, 1)
 
 	modeCommandStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("0")).
-				Background(colorBlue).
-				Padding(0, 1)
+		Bold(true).
+		Foreground(lipgloss.Color("0")).
+		Background(colorAccent).
+		Padding(0, 1)
 
-	// Status bar style
+	// Status bar
 	statusBarStyle = lipgloss.NewStyle().
-			Foreground(colorGray).
-			Padding(0, 1)
+		Foreground(colorDim).
+		Padding(0, 2)
 
-	// Visual mode selected item style
+	// Visual mode selected item
 	visualSelectedStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("0")).
-				Background(colorYellow)
+		Bold(true).
+		Foreground(lipgloss.Color("0")).
+		Background(colorWarning)
 
-	// Preview pane style
-	previewStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorGreen).
-			Padding(0, 1)
+	// Preview pane (borderless, matches other columns)
+	previewStyle = lipgloss.NewStyle()
+
+	// Path style (used by header breadcrumb)
+	pathStyle = headerPathStyle
+
+	// Legacy alias — headerStyle is used in overlay dialog
+	headerStyle = headerProjectStyle
 )

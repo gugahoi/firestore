@@ -20,6 +20,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		logDebug("KeyMsg received: %s (mode=%s, overlay=%d)", msg.String(), m.mode, m.overlay)
 
+		// Dismiss notification on any keypress
+		if m.statusMsg != "" {
+			m.statusMsg = ""
+		}
+
 		// Handle overlays first (dialogs on top of any mode)
 		if m.overlay != OverlayNone {
 			return m.handleOverlay(msg)
@@ -88,9 +93,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update viewport sizes for document columns
 		for i := range m.columns {
 			if m.columns[i].isDoc && m.columns[i].docContent != "" {
-				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 7 // Account for header and footer
-				vpWidth := colWidth - 4
+				colWidth := calculateColumnWidth(m.width-4, len(m.columns))
+				colHeight := m.itemViewHeight()
+				vpWidth := colWidth - 2
 				vpHeight := colHeight - 10
 				// Ensure minimum viewport dimensions (at least 20x5)
 				if vpWidth >= 20 && vpHeight >= 5 {
@@ -145,10 +150,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Initialize viewport if this is a document column
 			// Only create viewport if we have valid dimensions
 			if m.columns[msg.columnIndex].isDoc && msg.docContent != "" && m.width > 0 && m.height > 0 {
-				colWidth := calculateColumnWidth(m.width, len(m.columns))
-				colHeight := m.height - 7
-				// Ensure minimum viewport dimensions (at least 20x5)
-				vpWidth := colWidth - 4
+				colWidth := calculateColumnWidth(m.width-4, len(m.columns))
+				colHeight := m.itemViewHeight()
+				vpWidth := colWidth - 2
 				vpHeight := colHeight - 10
 				if vpWidth >= 20 && vpHeight >= 5 {
 					m.columns[msg.columnIndex].viewport = viewport.New(vpWidth, vpHeight)
@@ -422,8 +426,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	// Quit
-	case "q", "esc", "ctrl+c":
+	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "esc":
+		m.statusMsg = "Press q to quit"
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
 
 	// Vertical navigation (within column)
 	case "j", "down":
@@ -748,6 +756,17 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case OverlayInfo:
+		switch msg.String() {
+		case "esc", "q":
+			m.overlay = OverlayNone
+			m.infoContent = ""
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.infoViewport, cmd = m.infoViewport.Update(msg)
+		return m, cmd
+
 	case OverlayFilter:
 		switch msg.String() {
 		case "esc":
@@ -830,7 +849,7 @@ func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 // handleCommandMode processes input in command mode
 func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
+	case "esc", "ctrl+c":
 		m.mode = ModeNormal
 		m.commandInput.Blur()
 		m.commandInput.Reset()
@@ -863,8 +882,21 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if statusText != "" {
-			m.statusMsg = statusText
-			m.statusMsgTime = time.Now()
+			if strings.Contains(statusText, "\n") {
+				m.overlay = OverlayInfo
+				m.infoContent = statusText
+				vpWidth := min(m.width-8, 72)
+				vpHeight := min(m.height-8, strings.Count(statusText, "\n")+1)
+				m.infoViewport = viewport.New(vpWidth, vpHeight)
+				m.infoViewport.SetContent(statusText)
+			} else {
+				m.statusMsg = statusText
+				m.statusMsgTime = time.Now()
+			}
+		}
+
+		if m.pendingQuit {
+			return m, tea.Quit
 		}
 
 		// Check if the handler set a pending editor launch

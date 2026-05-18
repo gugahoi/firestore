@@ -59,7 +59,7 @@ signs:
     artifacts: checksum
 
 sboms:
-  - cmd: '{{ .Env.SYFT_CMD }}'
+  - cmd: syft
     artifacts: archive
 
 homebrew_casks:

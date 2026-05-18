@@ -33,6 +33,9 @@ jobs:
       id: syft
       uses: anchore/sbom-action/download-syft@v0
 
+    - name: Add Syft to PATH
+      run: echo "$(dirname '${{ steps.syft.outputs.cmd }}')" >> "$GITHUB_PATH"
+
     - name: Generate Homebrew tap token
       id: tap-token
       uses: actions/create-github-app-token@v3
@@ -51,7 +54,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
-        SYFT_CMD: ${{ steps.syft.outputs.cmd }}
 
     - name: Attest release artifacts
       uses: actions/attest@v4

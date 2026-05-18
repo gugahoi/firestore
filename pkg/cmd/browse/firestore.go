@@ -194,74 +194,15 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			colPath := strings.TrimPrefix(path, "/")
 			colRef := client.Collection(colPath)
 
-			// Apply sorting if specified
-			query := colRef.Query
-			if fo.query != nil {
-				query = query.Where(fo.query.Field, fo.query.Operator, fo.query.Value)
-			}
-			if sortField != "" {
-				query = query.OrderBy(sortField, sortDirection)
-			}
-
-			// Apply pagination limit
-			if fo.limit > 0 {
-				query = query.Limit(fo.limit + 1) // Fetch one extra to detect hasMore
-				if fo.offset > 0 {
-					query = query.Offset(fo.offset)
-				}
-			}
-
-			iter := query.Documents(ctx)
 			var items []ListItem
 			firstDoc := true
-			fetchCount := 0
-			for {
-				doc, err := iter.Next()
-				if err == iterator.Done {
-					break
-				}
-				if err != nil {
-					return errorMsg{err: err}
-				}
 
-				fetchCount++
-				// If we got more than limit, we have more pages
-				if fo.limit > 0 && fetchCount > fo.limit {
-					hasMore = true
-					break
-				}
-
-				// Extract field names from first document
-				if firstDoc {
-					firstDoc = false
-					data := doc.Data()
-					for key := range data {
-						availableFields = append(availableFields, key)
-					}
-					sort.Strings(availableFields)
-				}
-
-				metadata := map[string]string{}
-				if !doc.CreateTime.IsZero() {
-					metadata["created"] = doc.CreateTime.Local().Format("2006-01-02 15:04:05")
-				}
-				docPath := path + "/" + doc.Ref.ID
-				items = append(items, ListItem{
-					id:       doc.Ref.ID,
-					path:     docPath,
-					isDoc:    true,
-					metadata: metadata,
-				})
-			}
-
-			// Only fetch document refs for missing docs on first page
-			if fo.offset == 0 {
-				seen := make(map[string]bool, len(items))
-				for _, item := range items {
-					seen[item.id] = true
-				}
-
+			if fo.query == nil && sortField == "" {
+				// The default collection view should include both stored documents and
+				// document refs that only exist because they have subcollections.
 				refsIter := colRef.DocumentRefs(ctx)
+				refs := []*firestore.DocumentRef{}
+				skipped := 0
 				for {
 					ref, err := refsIter.Next()
 					if err == iterator.Done {
@@ -270,15 +211,109 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 					if err != nil {
 						return errorMsg{err: err}
 					}
-					if seen[ref.ID] {
+					if skipped < fo.offset {
+						skipped++
 						continue
 					}
-					docPath := path + "/" + ref.ID
+					if fo.limit > 0 && len(refs) > fo.limit {
+						hasMore = true
+						break
+					}
+					refs = append(refs, ref)
+				}
+
+				if fo.limit > 0 && len(refs) > fo.limit {
+					hasMore = true
+					refs = refs[:fo.limit]
+				}
+
+				if len(refs) > 0 {
+					snaps, err := client.GetAll(ctx, refs)
+					if err != nil {
+						return errorMsg{err: err}
+					}
+
+					for _, snap := range snaps {
+						docPath := path + "/" + snap.Ref.ID
+						item := ListItem{
+							id:    snap.Ref.ID,
+							path:  docPath,
+							isDoc: true,
+						}
+						if snap.Exists() {
+							if firstDoc {
+								firstDoc = false
+								data := snap.Data()
+								for key := range data {
+									availableFields = append(availableFields, key)
+								}
+								sort.Strings(availableFields)
+							}
+
+							metadata := map[string]string{}
+							if !snap.CreateTime.IsZero() {
+								metadata["created"] = snap.CreateTime.Local().Format("2006-01-02 15:04:05")
+							}
+							item.metadata = metadata
+						} else {
+							item.isMissing = true
+						}
+						items = append(items, item)
+					}
+				}
+			} else {
+				// Queries and sorts must use Firestore's server-side document query.
+				query := colRef.Query
+				if fo.query != nil {
+					query = query.Where(fo.query.Field, fo.query.Operator, fo.query.Value)
+				}
+				if sortField != "" {
+					query = query.OrderBy(sortField, sortDirection)
+				}
+
+				if fo.limit > 0 {
+					query = query.Limit(fo.limit + 1)
+					if fo.offset > 0 {
+						query = query.Offset(fo.offset)
+					}
+				}
+
+				iter := query.Documents(ctx)
+				fetchCount := 0
+				for {
+					doc, err := iter.Next()
+					if err == iterator.Done {
+						break
+					}
+					if err != nil {
+						return errorMsg{err: err}
+					}
+
+					fetchCount++
+					if fo.limit > 0 && fetchCount > fo.limit {
+						hasMore = true
+						break
+					}
+
+					if firstDoc {
+						firstDoc = false
+						data := doc.Data()
+						for key := range data {
+							availableFields = append(availableFields, key)
+						}
+						sort.Strings(availableFields)
+					}
+
+					metadata := map[string]string{}
+					if !doc.CreateTime.IsZero() {
+						metadata["created"] = doc.CreateTime.Local().Format("2006-01-02 15:04:05")
+					}
+					docPath := path + "/" + doc.Ref.ID
 					items = append(items, ListItem{
-						id:        ref.ID,
-						path:      docPath,
-						isDoc:     true,
-						isMissing: true,
+						id:       doc.Ref.ID,
+						path:     docPath,
+						isDoc:    true,
+						metadata: metadata,
 					})
 				}
 			}
@@ -391,13 +426,13 @@ func fetchColumnData(client *firestore.Client, path string, isDoc bool, columnIn
 			}
 		}
 
-		// Count queried documents (exclude missing refs and sentinel — docCount
-		// is used as the Firestore query Offset for pagination)
+		// Count displayed documents/refs (exclude sentinel — docCount is used as
+		// the Offset for pagination in both query and DocumentRefs modes).
 		totalDocs := 0
 		for _, s := range sections {
 			if s.title == "Documents" {
 				for _, item := range s.items {
-					if item.path != "__load_more__" && !item.isMissing {
+					if item.path != "__load_more__" {
 						totalDocs++
 					}
 				}

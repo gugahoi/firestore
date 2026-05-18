@@ -1,29 +1,59 @@
 name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
+  attestations: write
+  artifact-metadata: write
   contents: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Install cosign
+      uses: sigstore/cosign-installer@v4
+
+    - name: Install Syft
+      id: syft
+      uses: anchore/sbom-action/download-syft@v0
+
+    - name: Generate Homebrew tap token
+      id: tap-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ vars.HOMEBREW_TAP_APP_ID }}
+        private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+        owner: gugahoi
+        repositories: homebrew-tap
 
     - name: Release
-      uses: goreleaser/goreleaser-action@v6
+      uses: goreleaser/goreleaser-action@v7
       with:
         distribution: goreleaser
         version: '~> v2'
-        args: release --clean
+        args: release --clean --fail-fast
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
+        SYFT_CMD: ${{ steps.syft.outputs.cmd }}
+
+    - name: Attest release artifacts
+      uses: actions/attest@v4
+      with:
+        subject-checksums: dist/checksums.txt

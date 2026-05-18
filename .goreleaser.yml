@@ -3,20 +3,34 @@
 
 version: 2
 
+metadata:
+  mod_timestamp: '{{ .CommitTimestamp }}'
+
+project_name: firestore
+
 before:
   hooks:
     - go mod download
 
 builds:
-  - env:
+  - id: firestore
+    env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
     goos:
       - linux
       - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -28,7 +42,44 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+signs:
+  - cmd: cosign
+    signature: '${artifact}.sigstore.json'
+    args:
+      - sign-blob
+      - '--bundle=${signature}'
+      - '${artifact}'
+      - --yes
+    artifacts: checksum
+
+sboms:
+  - cmd: '{{ .Env.SYFT_CMD }}'
+    artifacts: archive
+
+homebrew_casks:
+  - name: firestore
+    ids:
+      - default
+    repository:
+      owner: gugahoi
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+    homepage: https://github.com/gugahoi/firestore
+    description: Command line utility to facilitate operations with Firestore
+    binaries:
+      - firestore
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/firestore"]
+          end
 
 changelog:
   sort: asc

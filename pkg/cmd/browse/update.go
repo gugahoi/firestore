@@ -321,6 +321,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, clearStatusAfterDelay()
 
+	case renameRefusedMsg:
+		m.loading = false
+		m.statusMsg = msg.reason
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
+
+	case renamePreparedMsg:
+		if msg.destExists {
+			// Destination already exists — confirm the overwrite.
+			m.renameSrc = msg.src
+			m.renameDst = msg.dst
+			m.renameFromDocView = msg.fromDocView
+			m.loading = false
+			m.overlay = OverlayRenameConfirm
+			return m, nil
+		}
+		// Destination is free — proceed with the rename.
+		return m, executeRename(m.client, msg.src, msg.dst, msg.fromDocView)
+
+	case renamedMsg:
+		m.loading = false
+
+		if msg.fromDocView {
+			// Rename was from a document column — the open path no longer
+			// exists, so go back to the parent collection.
+			m.removeLastColumn()
+		}
+
+		m.statusMsg = fmt.Sprintf("Renamed to %s", msg.dst)
+		m.statusMsgTime = time.Now()
+
+		// Refresh the now-active column so the change is reflected.
+		if m.activeColumn < len(m.columns) {
+			col := m.columns[m.activeColumn]
+			sortField, sortDir := m.getSortParams(col.path)
+			m.loading = true
+			return m, tea.Batch(
+				fetchColumnData(m.client, col.path, col.isDoc, m.activeColumn, sortField, sortDir, withLimit(m.pageLimit)),
+				clearStatusAfterDelay(),
+			)
+		}
+		return m, clearStatusAfterDelay()
+
 	}
 
 	return m, nil
@@ -654,6 +697,35 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.deletePath = docPath
 		m.overlay = OverlayDeleteConfirm
 		return m, nil
+
+	case "R":
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		var srcPath string
+
+		if col.isDoc {
+			srcPath = col.path
+			m.renameFromDocView = true
+		} else {
+			item := m.getSelectedItem()
+			if item == nil || !item.isDoc {
+				m.statusMsg = "Select a document to rename"
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+			srcPath = item.path
+			m.renameFromDocView = false
+		}
+
+		m.renameSrc = srcPath
+		m.overlay = OverlayRename
+		m.textInput.SetValue(srcPath)
+		m.textInput.CursorEnd()
+		m.textInput.Focus()
+		return m, textinput.Blink
 	}
 
 	return m, nil
@@ -751,6 +823,51 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.deletePath = ""
 			m.deleteFromDocView = false
 			m.bulkDeletePaths = nil
+			m.overlay = OverlayNone
+			return m, nil
+		}
+		return m, nil
+
+	case OverlayRename:
+		switch msg.String() {
+		case "enter":
+			input := m.textInput.Value()
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+
+			dst, err := resolveRenameTarget(m.renameSrc, input)
+			if err != nil {
+				m.renameSrc = ""
+				m.statusMsg = fmt.Sprintf("Error: %s", err)
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+
+			m.loading = true
+			return m, prepareRename(m.client, m.renameSrc, dst, m.renameFromDocView)
+		case "esc":
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+			m.renameSrc = ""
+			return m, nil
+		}
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+
+	case OverlayRenameConfirm:
+		switch msg.String() {
+		case "y", "enter":
+			m.overlay = OverlayNone
+			src, dst, fromDocView := m.renameSrc, m.renameDst, m.renameFromDocView
+			m.renameSrc = ""
+			m.renameDst = ""
+			m.loading = true
+			return m, executeRename(m.client, src, dst, fromDocView)
+		case "n", "esc", "q":
+			m.renameSrc = ""
+			m.renameDst = ""
 			m.overlay = OverlayNone
 			return m, nil
 		}
@@ -914,6 +1031,13 @@ func (m Model) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				fetchColumnData(m.client, pf.path, pf.isDoc, pf.colIndex, pf.sortField, pf.sortDir, pf.opts...),
 				clearStatusAfterDelay(),
 			)
+		}
+
+		// Check if the handler set a generic pending command
+		if m.pendingCmd != nil {
+			pc := m.pendingCmd
+			m.pendingCmd = nil
+			return m, pc
 		}
 
 		return m, clearStatusAfterDelay()

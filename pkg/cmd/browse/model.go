@@ -29,6 +29,8 @@ const (
 	OverlayDeleteConfirm
 	OverlayFilter
 	OverlayInfo
+	OverlayRename
+	OverlayRenameConfirm
 )
 
 func (m Mode) String() string {
@@ -67,6 +69,7 @@ type Model struct {
 	commandResult   string
 	pendingFetch    *pendingFetchCmd
 	pendingEditor   tea.Cmd
+	pendingCmd      tea.Cmd
 	pendingQuit     bool
 
 	// Sort dialog
@@ -106,6 +109,11 @@ type Model struct {
 	deletePath        string // Path of document pending deletion
 	deleteFromDocView bool   // Whether delete was initiated from a document column
 	bulkDeletePaths   []string // Paths for bulk delete in visual mode
+
+	// Rename / move
+	renameSrc         string // Source path of document being renamed
+	renameDst         string // Destination path (carried into overwrite confirm)
+	renameFromDocView bool   // Whether rename was initiated from a document column
 
 	// Filter
 	filterInput   textinput.Model

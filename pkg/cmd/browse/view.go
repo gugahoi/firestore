@@ -220,6 +220,43 @@ func (m Model) View() string {
 		)
 	}
 
+	if m.overlay == OverlayRename {
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			"Rename / move document to:",
+			m.textInput.View(),
+		)
+		dialog := inputDialogStyle.Render(dialogContent)
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(colorGray),
+		)
+	}
+
+	if m.overlay == OverlayRenameConfirm {
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			errorStyle.Render("Destination exists — overwrite?"),
+			"",
+			m.renameDst,
+			"",
+			footerStyle.Render("y/Enter: confirm  n/Esc: cancel"),
+		)
+		dialog := deleteDialogStyle.Render(dialogContent)
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+		)
+	}
+
 	// Floating status notification
 	if m.statusMsg != "" {
 		notificationStyle := lipgloss.NewStyle().
@@ -633,6 +670,12 @@ func (m Model) getFooterHints() string {
 	if m.overlay == OverlayPathInput {
 		return "Enter: Navigate  Esc: Cancel"
 	}
+	if m.overlay == OverlayRename {
+		return "Enter: Rename  Esc: Cancel"
+	}
+	if m.overlay == OverlayRenameConfirm {
+		return "y/Enter: Overwrite  n/Esc: Cancel"
+	}
 	if m.overlay == OverlayFilter {
 		return "Enter: Confirm filter  Esc: Clear and cancel"
 	}
@@ -643,7 +686,7 @@ func (m Model) getFooterHints() string {
 	case ModeCommand:
 		return "Esc: Normal mode"
 	default:
-		return "j/k ↕  h/l ↔  g/G Top/Bottom  / Filter  s Sort  e Edit  d Del  yy Copy  : Cmd  q Quit"
+		return "j/k ↕  h/l ↔  g/G Top/Bottom  / Filter  s Sort  e Edit  d Del  R Move  yy Copy  : Cmd  q Quit"
 	}
 }
 

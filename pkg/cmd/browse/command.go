@@ -159,6 +159,20 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdAdd,
 	})
 
+	r.Register(Command{
+		Name:        "rename",
+		Description: "Rename or move a document (copy to new path, delete old)",
+		Usage:       ":rename <path>",
+		Handler:     cmdRename,
+	})
+
+	r.Register(Command{
+		Name:        "mv",
+		Description: "Alias for :rename",
+		Usage:       ":mv <path>",
+		Handler:     cmdRename,
+	})
+
 	return r
 }
 
@@ -216,6 +230,7 @@ DOCUMENT OPERATIONS
 
   e               Edit document (opens $EDITOR)
   d               Delete document (with confirmation)
+  R               Rename / move document (copy to new path, delete old)
   r               Refresh current column
   p               Toggle preview pane
 
@@ -259,6 +274,9 @@ COMMANDS
   :set limit <n>          Set pagination limit (default: 50)
   :export json|ndjson [f] Export documents (to file or clipboard)
   :add [id]               Create a new document
+  :rename <path>          Rename / move a document (bare name = same
+                          collection; path with / = absolute from root)
+  :mv <path>              Alias for :rename
   :marks                  List all bookmarks
 
   Tab in command mode autocompletes command names.
@@ -390,6 +408,43 @@ func cmdAdd(m *Model, args []string) (string, error) {
 	}
 
 	m.pendingEditor = startAddCmd(m.client, col.path, docID, col.availableFields, m.activeColumn)
+	return "", nil
+}
+
+func cmdRename(m *Model, args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("usage: :rename <path>")
+	}
+
+	if m.activeColumn >= len(m.columns) {
+		return "", fmt.Errorf("no active column")
+	}
+
+	col := m.columns[m.activeColumn]
+	var src string
+	var fromDocView bool
+
+	if col.isDoc {
+		src = col.path
+		fromDocView = true
+	} else {
+		item := m.getSelectedItem()
+		if item == nil || !item.isDoc {
+			return "", fmt.Errorf("select a document to rename")
+		}
+		src = item.path
+		fromDocView = false
+	}
+
+	dst, err := resolveRenameTarget(src, strings.Join(args, " "))
+	if err != nil {
+		return "", err
+	}
+
+	m.renameSrc = src
+	m.renameFromDocView = fromDocView
+	m.loading = true
+	m.pendingCmd = prepareRename(m.client, src, dst, fromDocView)
 	return "", nil
 }
 

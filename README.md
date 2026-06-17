@@ -137,3 +137,22 @@ firestore --host localhost:9090 document get /my-collection/my-document
 ```
 
 The `--host` flag will override the environment variable if both are set.
+
+## Running Integration Tests
+
+Integration tests live in `pkg/cmd/browse/rename_integration_test.go` and are gated by the `integration` build tag, so they are excluded from the normal `go test ./...` run.
+
+**Prerequisites:** `gcloud` CLI with the `cloud-firestore-emulator` component and Java installed.
+
+```bash
+# Install the emulator component once
+gcloud components install cloud-firestore-emulator
+
+# Run all integration tests (boots the emulator automatically on port 8765)
+make integration-test
+
+# Use a different port
+make integration-test PORT=9000
+```
+
+The `make integration-test` target starts the emulator in the background, exports `FIRESTORE_EMULATOR_HOST`, runs `go test -tags integration -v ./...`, and tears the emulator down on exit — even if the tests fail.

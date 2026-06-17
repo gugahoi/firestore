@@ -333,7 +333,7 @@ func (m Model) renderColumns() string {
 
 	previewWidth := 0
 	availWidth := m.width - margin
-	if m.previewEnabled && len(m.previewNodes) > 0 {
+	if m.shouldShowPreview() {
 		previewWidth = (m.width - margin) / 3
 		availWidth -= previewWidth + sepWidth
 	}
@@ -355,7 +355,7 @@ func (m Model) renderColumns() string {
 	}
 
 	// Add preview pane if enabled
-	if m.previewEnabled && previewWidth > 0 && len(m.previewNodes) > 0 {
+	if previewWidth > 0 && m.shouldShowPreview() {
 		parts = append(parts, verticalSeparator(height))
 		previewCol := m.renderPreviewPane(previewWidth, height)
 		parts = append(parts, previewCol)

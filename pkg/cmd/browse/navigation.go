@@ -108,6 +108,20 @@ func (m *Model) getAllItemsCount(col Column) int {
 	return count
 }
 
+// shouldShowPreview reports whether the preview pane should be rendered.
+// Preview is a collection-only feature: when the active column is itself a
+// document, the doc's contents already fill that column, so rendering the
+// pane would duplicate it.
+func (m *Model) shouldShowPreview() bool {
+	if !m.previewEnabled || len(m.previewNodes) == 0 {
+		return false
+	}
+	if m.activeColumn >= len(m.columns) {
+		return false
+	}
+	return !m.columns[m.activeColumn].isDoc
+}
+
 // moveCursor moves the cursor in the active column
 func (m *Model) moveCursor(delta int) {
 	if m.activeColumn >= len(m.columns) {
@@ -157,7 +171,7 @@ func (m *Model) autoScroll() {
 	sepWidth := 3
 	margin := 4
 	availWidth := m.width - margin
-	if m.previewEnabled && len(m.previewNodes) > 0 {
+	if m.shouldShowPreview() {
 		previewWidth := (m.width - margin) / 3
 		availWidth -= previewWidth + sepWidth
 	}

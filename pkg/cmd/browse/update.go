@@ -364,6 +364,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, clearStatusAfterDelay()
 
+	case copyRefusedMsg:
+		m.loading = false
+		m.statusMsg = msg.reason
+		m.statusMsgTime = time.Now()
+		return m, clearStatusAfterDelay()
+
+	case copiedMsg:
+		m.loading = false
+
+		status := fmt.Sprintf("Copied to %s", msg.newPath)
+		if msg.hadSubcollections {
+			status += " (subcollections not copied)"
+		}
+		m.statusMsg = status
+		m.statusMsgTime = time.Now()
+
+		// The new sibling lives in the collection column. When copying from a
+		// document column, that collection is one column to the left; the source
+		// still exists, so the column is kept (no removeLastColumn).
+		refreshIdx := m.activeColumn
+		if refreshIdx < len(m.columns) && m.columns[refreshIdx].isDoc {
+			refreshIdx--
+		}
+		if refreshIdx >= 0 && refreshIdx < len(m.columns) {
+			col := m.columns[refreshIdx]
+			sortField, sortDir := m.getSortParams(col.path)
+			m.loading = true
+			return m, tea.Batch(
+				fetchColumnData(m.client, col.path, col.isDoc, refreshIdx, sortField, sortDir, withLimit(m.pageLimit)),
+				clearStatusAfterDelay(),
+			)
+		}
+		return m, clearStatusAfterDelay()
+
 	}
 
 	return m, nil
@@ -726,6 +760,34 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.CursorEnd()
 		m.textInput.Focus()
 		return m, textinput.Blink
+
+	case "c":
+		if m.activeColumn >= len(m.columns) {
+			return m, nil
+		}
+
+		col := m.columns[m.activeColumn]
+		var srcPath string
+
+		if col.isDoc {
+			srcPath = col.path
+			m.copyFromDocView = true
+		} else {
+			item := m.getSelectedItem()
+			if item == nil || !item.isDoc {
+				m.statusMsg = "Select a document to copy"
+				m.statusMsgTime = time.Now()
+				return m, clearStatusAfterDelay()
+			}
+			srcPath = item.path
+			m.copyFromDocView = false
+		}
+
+		m.copySrc = srcPath
+		m.overlay = OverlayCopy
+		m.textInput.SetValue("")
+		m.textInput.Focus()
+		return m, textinput.Blink
 	}
 
 	return m, nil
@@ -851,6 +913,40 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.textInput.Blur()
 			m.textInput.Reset()
 			m.renameSrc = ""
+			return m, nil
+		}
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+
+	case OverlayCopy:
+		switch msg.String() {
+		case "enter":
+			input := strings.TrimSpace(m.textInput.Value())
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+
+			dst := ""
+			if input != "" {
+				resolved, err := resolveRenameTarget(m.copySrc, input)
+				if err != nil {
+					m.copySrc = ""
+					m.statusMsg = fmt.Sprintf("Error: %s", err)
+					m.statusMsgTime = time.Now()
+					return m, clearStatusAfterDelay()
+				}
+				dst = resolved
+			}
+
+			src, fromDocView := m.copySrc, m.copyFromDocView
+			m.copySrc = ""
+			m.loading = true
+			return m, executeCopy(m.client, src, dst, fromDocView)
+		case "esc":
+			m.overlay = OverlayNone
+			m.textInput.Blur()
+			m.textInput.Reset()
+			m.copySrc = ""
 			return m, nil
 		}
 		m.textInput, cmd = m.textInput.Update(msg)

@@ -31,6 +31,7 @@ const (
 	OverlayInfo
 	OverlayRename
 	OverlayRenameConfirm
+	OverlayCopy
 )
 
 func (m Mode) String() string {
@@ -114,6 +115,10 @@ type Model struct {
 	renameSrc         string // Source path of document being renamed
 	renameDst         string // Destination path (carried into overwrite confirm)
 	renameFromDocView bool   // Whether rename was initiated from a document column
+
+	// Copy / duplicate
+	copySrc         string // Source path of document being copied
+	copyFromDocView bool   // Whether copy was initiated from a document column
 
 	// Filter
 	filterInput   textinput.Model

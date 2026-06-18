@@ -19,13 +19,16 @@ func TestExecuteCopy_AutoID(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	msg := executeCopy(client, src, "", false)()
+	msg := executeCopy(client, src, "")()
 	copied, ok := msg.(copiedMsg)
 	if !ok {
 		t.Fatalf("expected copiedMsg, got %#v", msg)
 	}
 	if copied.newPath == src {
 		t.Fatalf("auto copy reused source path %s", src)
+	}
+	if copied.collectionPath != "copy_users" {
+		t.Errorf("collectionPath = %q, want %q", copied.collectionPath, "copy_users")
 	}
 	if copied.hadSubcollections {
 		t.Error("hadSubcollections = true, want false")
@@ -55,13 +58,16 @@ func TestExecuteCopy_ExplicitID(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	msg := executeCopy(client, src, dst, false)()
+	msg := executeCopy(client, src, dst)()
 	copied, ok := msg.(copiedMsg)
 	if !ok {
 		t.Fatalf("expected copiedMsg, got %#v", msg)
 	}
 	if copied.newPath != dst {
 		t.Errorf("newPath = %q, want %q", copied.newPath, dst)
+	}
+	if copied.collectionPath != "copy_users" {
+		t.Errorf("collectionPath = %q, want %q", copied.collectionPath, "copy_users")
 	}
 
 	// Both source and copy exist with the same data.
@@ -90,7 +96,7 @@ func TestExecuteCopy_RefusesExistingDestination(t *testing.T) {
 		t.Fatalf("seed dst: %v", err)
 	}
 
-	msg := executeCopy(client, src, dst, false)()
+	msg := executeCopy(client, src, dst)()
 	if _, ok := msg.(copyRefusedMsg); !ok {
 		t.Fatalf("expected copyRefusedMsg for existing destination, got %#v", msg)
 	}
@@ -119,7 +125,7 @@ func TestExecuteCopy_PhantomDocument(t *testing.T) {
 
 	// A phantom source has no field data, so copy is refused with a transient
 	// message rather than a sticky error.
-	msg := executeCopy(client, src, "", false)()
+	msg := executeCopy(client, src, "")()
 	if _, ok := msg.(copyRefusedMsg); !ok {
 		t.Fatalf("expected copyRefusedMsg for phantom document, got %#v", msg)
 	}
@@ -138,7 +144,7 @@ func TestExecuteCopy_IgnoresSubcollections(t *testing.T) {
 		t.Fatalf("seed subcollection: %v", err)
 	}
 
-	msg := executeCopy(client, src, dst, false)()
+	msg := executeCopy(client, src, dst)()
 	copied, ok := msg.(copiedMsg)
 	if !ok {
 		t.Fatalf("expected copiedMsg, got %#v", msg)

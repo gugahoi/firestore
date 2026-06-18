@@ -14,7 +14,7 @@ import (
 type Mode int
 
 const (
-	ModeNormal  Mode = iota
+	ModeNormal Mode = iota
 	ModeVisual
 	ModeCommand
 )
@@ -60,8 +60,8 @@ type Model struct {
 	err          error
 
 	// Mode system
-	mode    Mode
-	overlay Overlay
+	mode      Mode
+	overlay   Overlay
 	textInput textinput.Model
 
 	// Command mode
@@ -107,8 +107,8 @@ type Model struct {
 	previewPending string // path of pending debounced fetch
 
 	// Delete confirmation
-	deletePath        string // Path of document pending deletion
-	deleteFromDocView bool   // Whether delete was initiated from a document column
+	deletePath        string   // Path of document pending deletion
+	deleteFromDocView bool     // Whether delete was initiated from a document column
 	bulkDeletePaths   []string // Paths for bulk delete in visual mode
 
 	// Rename / move
@@ -117,8 +117,7 @@ type Model struct {
 	renameFromDocView bool   // Whether rename was initiated from a document column
 
 	// Copy / duplicate
-	copySrc         string // Source path of document being copied
-	copyFromDocView bool   // Whether copy was initiated from a document column
+	copySrc string // Source path of document being copied
 
 	// Filter
 	filterInput   textinput.Model

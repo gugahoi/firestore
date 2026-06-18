@@ -238,6 +238,24 @@ func (m Model) View() string {
 		)
 	}
 
+	if m.overlay == OverlayCopy {
+		dialogContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			"Copy document — new id (blank = auto):",
+			m.textInput.View(),
+		)
+		dialog := inputDialogStyle.Render(dialogContent)
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			dialog,
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(colorGray),
+		)
+	}
+
 	if m.overlay == OverlayRenameConfirm {
 		dialogContent := lipgloss.JoinVertical(
 			lipgloss.Center,

@@ -173,6 +173,20 @@ func initCommandRegistry() *CommandRegistry {
 		Handler:     cmdRename,
 	})
 
+	r.Register(Command{
+		Name:        "copy",
+		Description: "Copy a document to a new id (blank = auto-generate)",
+		Usage:       ":copy [id|path]",
+		Handler:     cmdCopy,
+	})
+
+	r.Register(Command{
+		Name:        "cp",
+		Description: "Alias for :copy",
+		Usage:       ":cp [id|path]",
+		Handler:     cmdCopy,
+	})
+
 	return r
 }
 
@@ -231,6 +245,7 @@ DOCUMENT OPERATIONS
   e               Edit document (opens $EDITOR)
   d               Delete document (with confirmation)
   R               Rename / move document (copy to new path, delete old)
+  c               Copy document to a new id (prompts; blank = auto-generate)
   r               Refresh current column
   p               Toggle preview pane
 
@@ -277,6 +292,9 @@ COMMANDS
   :rename <path>          Rename / move a document (bare name = same
                           collection; path with / = absolute from root)
   :mv <path>              Alias for :rename
+  :copy [id|path]         Copy a document (no arg = auto id; bare name = same
+                          collection; path with / = absolute from root)
+  :cp [id|path]           Alias for :copy
   :marks                  List all bookmarks
 
   Tab in command mode autocompletes command names.
@@ -445,6 +463,43 @@ func cmdRename(m *Model, args []string) (string, error) {
 	m.renameFromDocView = fromDocView
 	m.loading = true
 	m.pendingCmd = prepareRename(m.client, src, dst, fromDocView)
+	return "", nil
+}
+
+func cmdCopy(m *Model, args []string) (string, error) {
+	if m.activeColumn >= len(m.columns) {
+		return "", fmt.Errorf("no active column")
+	}
+
+	col := m.columns[m.activeColumn]
+	var src string
+	var fromDocView bool
+
+	if col.isDoc {
+		src = col.path
+		fromDocView = true
+	} else {
+		item := m.getSelectedItem()
+		if item == nil || !item.isDoc {
+			return "", fmt.Errorf("select a document to copy")
+		}
+		src = item.path
+		fromDocView = false
+	}
+
+	dst := ""
+	if input := strings.TrimSpace(strings.Join(args, " ")); input != "" {
+		resolved, err := resolveRenameTarget(src, input)
+		if err != nil {
+			return "", err
+		}
+		dst = resolved
+	}
+
+	m.copySrc = src
+	m.copyFromDocView = fromDocView
+	m.loading = true
+	m.pendingCmd = executeCopy(m.client, src, dst, fromDocView)
 	return "", nil
 }
 

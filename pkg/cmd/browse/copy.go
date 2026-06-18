@@ -13,11 +13,15 @@ import (
 )
 
 // copiedMsg is emitted once the source document's field data has been copied
-// into a new document. newPath is the path of the freshly created document and
-// hadSubcollections reports whether the source had subcollections (which are
-// not copied) so the caller can surface a note.
+// into a new document. newPath is the path of the freshly created document,
+// collectionPath is the collection the new sibling now lives in (captured at
+// copy time so the handler can refresh the correct column even if the user
+// navigated during the async copy), and hadSubcollections reports whether the
+// source had subcollections (which are not copied) so the caller can surface a
+// note.
 type copiedMsg struct {
 	newPath           string
+	collectionPath    string
 	hadSubcollections bool
 }
 
@@ -33,7 +37,7 @@ type copyRefusedMsg struct {
 // otherwise dst is used and the copy is refused if a document already exists
 // there. Only top-level field data is copied — subcollections are left behind.
 // The source is never modified.
-func executeCopy(client *firestore.Client, src, dst string, fromDocView bool) tea.Cmd {
+func executeCopy(client *firestore.Client, src, dst string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		srcRef := client.Doc(strings.TrimPrefix(src, "/"))
@@ -64,7 +68,8 @@ func executeCopy(client *firestore.Client, src, dst string, fromDocView bool) te
 			if _, err := dstRef.Set(ctx, snap.Data()); err != nil {
 				return errorMsg{err: fmt.Errorf("failed to write copy: %w", err)}
 			}
-			return copiedMsg{newPath: parent + "/" + dstRef.ID, hadSubcollections: hadSub}
+			newPath := parent + "/" + dstRef.ID
+			return copiedMsg{newPath: newPath, collectionPath: parentCollectionPath(newPath), hadSubcollections: hadSub}
 		}
 
 		// Explicit destination — refuse if something is already there.
@@ -75,7 +80,8 @@ func executeCopy(client *firestore.Client, src, dst string, fromDocView bool) te
 			}
 			return errorMsg{err: fmt.Errorf("failed to write copy: %w", err)}
 		}
-		return copiedMsg{newPath: strings.Trim(dst, "/"), hadSubcollections: hadSub}
+		newPath := strings.Trim(dst, "/")
+		return copiedMsg{newPath: newPath, collectionPath: parentCollectionPath(newPath), hadSubcollections: hadSub}
 	}
 }
 
@@ -89,4 +95,26 @@ func parentCollectionPath(docPath string) string {
 		return ""
 	}
 	return p[:idx]
+}
+
+// copyRefreshIndex returns the index of the collection column that should be
+// refreshed after a copy completes, identified by the collection path captured
+// in copiedMsg at copy-initiation time. It deliberately does NOT consult
+// m.activeColumn: the user may have navigated during the async copy, so the
+// live active column can no longer be trusted to point at the originating
+// collection. Returns -1 when no current column matches (e.g. the column was
+// removed via navigation), in which case nothing should be refreshed.
+func (m Model) copyRefreshIndex(collectionPath string) int {
+	if collectionPath == "" {
+		return -1
+	}
+	for idx, col := range m.columns {
+		if col.isDoc {
+			continue
+		}
+		if strings.TrimPrefix(col.path, "/") == collectionPath {
+			return idx
+		}
+	}
+	return -1
 }

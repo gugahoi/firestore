@@ -380,14 +380,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsg = status
 		m.statusMsgTime = time.Now()
 
-		// The new sibling lives in the collection column. When copying from a
-		// document column, that collection is one column to the left; the source
-		// still exists, so the column is kept (no removeLastColumn).
-		refreshIdx := m.activeColumn
-		if refreshIdx < len(m.columns) && m.columns[refreshIdx].isDoc {
-			refreshIdx--
-		}
-		if refreshIdx >= 0 && refreshIdx < len(m.columns) {
+		// Refresh the column showing the originating collection so the new
+		// sibling appears. The target is matched against the collection path
+		// captured in the message at copy time — never re-derived from
+		// m.activeColumn, which may have moved if the user navigated during the
+		// async copy. If that column is no longer present, refresh nothing.
+		refreshIdx := m.copyRefreshIndex(msg.collectionPath)
+		if refreshIdx >= 0 {
 			col := m.columns[refreshIdx]
 			sortField, sortDir := m.getSortParams(col.path)
 			m.loading = true
@@ -771,7 +770,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if col.isDoc {
 			srcPath = col.path
-			m.copyFromDocView = true
 		} else {
 			item := m.getSelectedItem()
 			if item == nil || !item.isDoc {
@@ -780,7 +778,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, clearStatusAfterDelay()
 			}
 			srcPath = item.path
-			m.copyFromDocView = false
 		}
 
 		m.copySrc = srcPath
@@ -938,10 +935,10 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				dst = resolved
 			}
 
-			src, fromDocView := m.copySrc, m.copyFromDocView
+			src := m.copySrc
 			m.copySrc = ""
 			m.loading = true
-			return m, executeCopy(m.client, src, dst, fromDocView)
+			return m, executeCopy(m.client, src, dst)
 		case "esc":
 			m.overlay = OverlayNone
 			m.textInput.Blur()
@@ -1022,7 +1019,7 @@ func (m Model) handleOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) applySortAndClose() (tea.Model, tea.Cmd) {
 	// Get selected field (text input takes priority)
 	field := m.sortDialog.getSelectedField()
-	
+
 	if field == "" {
 		m.statusMsg = "No field selected"
 		m.statusMsgTime = time.Now()

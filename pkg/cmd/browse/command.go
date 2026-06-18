@@ -473,18 +473,15 @@ func cmdCopy(m *Model, args []string) (string, error) {
 
 	col := m.columns[m.activeColumn]
 	var src string
-	var fromDocView bool
 
 	if col.isDoc {
 		src = col.path
-		fromDocView = true
 	} else {
 		item := m.getSelectedItem()
 		if item == nil || !item.isDoc {
 			return "", fmt.Errorf("select a document to copy")
 		}
 		src = item.path
-		fromDocView = false
 	}
 
 	dst := ""
@@ -497,9 +494,8 @@ func cmdCopy(m *Model, args []string) (string, error) {
 	}
 
 	m.copySrc = src
-	m.copyFromDocView = fromDocView
 	m.loading = true
-	m.pendingCmd = executeCopy(m.client, src, dst, fromDocView)
+	m.pendingCmd = executeCopy(m.client, src, dst)
 	return "", nil
 }
 

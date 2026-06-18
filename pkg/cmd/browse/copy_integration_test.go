@@ -113,7 +113,7 @@ func TestExecuteCopy_PhantomDocument(t *testing.T) {
 	// listed as first-class refs in the browser, so a user can select one and
 	// press `c`. Probe what executeCopy does with it.
 	src := "copy_users/ghost"
-	if _, err := client.Doc(src + "/orders/o1").Set(ctx, map[string]interface{}{"total": int64(5)}); err != nil {
+	if _, err := client.Doc(src+"/orders/o1").Set(ctx, map[string]interface{}{"total": int64(5)}); err != nil {
 		t.Fatalf("seed subcollection: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestExecuteCopy_IgnoresSubcollections(t *testing.T) {
 	if _, err := client.Doc(src).Set(ctx, map[string]interface{}{"name": "Eve"}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err := client.Doc(src + "/orders/o1").Set(ctx, map[string]interface{}{"total": int64(10)}); err != nil {
+	if _, err := client.Doc(src+"/orders/o1").Set(ctx, map[string]interface{}{"total": int64(10)}); err != nil {
 		t.Fatalf("seed subcollection: %v", err)
 	}
 

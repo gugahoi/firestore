@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'git (commit|push)' && [ \"$(git branch --show-current 2>/dev/null)\" = main ]; then echo 'Blocked: on main. Branch first (repo convention: never commit/push to main).' >&2; exit 2; fi; exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); if [ \"${f##*.}\" = go ] && [ -f \"$f\" ]; then gofmt -w \"$f\" && echo \"gofmt: formatted $f\" >&2; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -660,13 +660,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		col := m.columns[m.activeColumn]
-		if !col.isDoc {
-			m.statusMsg = "Can only edit documents (not collections)"
+		if col.isDoc {
+			return m, startEditCmd(m.client, col.path, col.docData)
+		}
+
+		item := m.getSelectedItem()
+		if item == nil || !item.isDoc {
+			m.statusMsg = "Select a document to edit"
 			m.statusMsgTime = time.Now()
 			return m, clearStatusAfterDelay()
 		}
-
-		return m, startEditCmd(m.client, col.path, col.docData)
+		return m, startEditCmd(m.client, item.path, nil) // nil → fetch in cmd
 
 	case "r":
 		// Refresh current column

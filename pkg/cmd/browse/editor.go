@@ -14,13 +14,13 @@ import (
 
 // editSession holds state for an ongoing edit session
 type editSession struct {
-	client     *firestore.Client
-	docPath    string
-	tempFile   string
-	editor     string
-	isCreate   bool   // true when creating a new document
-	colPath    string // collection path (for create mode)
-	colIndex   int    // column index to refresh after create
+	client   *firestore.Client
+	docPath  string
+	tempFile string
+	editor   string
+	isCreate bool   // true when creating a new document
+	colPath  string // collection path (for create mode)
+	colIndex int    // column index to refresh after create
 }
 
 // detectEditor finds the user's preferred editor
@@ -98,6 +98,16 @@ func startEditCmd(client *firestore.Client, docPath string, docData map[string]i
 		editor, err := detectEditor()
 		if err != nil {
 			return errorMsg{err: err}
+		}
+
+		// Hovered-document edit: data not loaded yet, fetch it.
+		if docData == nil {
+			ctx := context.Background()
+			snap, err := client.Doc(strings.TrimPrefix(docPath, "/")).Get(ctx)
+			if err != nil {
+				return errorMsg{err: fmt.Errorf("failed to load document: %w", err)}
+			}
+			docData = snap.Data()
 		}
 
 		logDebug("Starting edit for document: %s", docPath)

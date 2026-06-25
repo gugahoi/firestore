@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 
+	"github.com/gugahoi/firestore/pkg/cmd/api"
 	"github.com/gugahoi/firestore/pkg/cmd/auth"
 	"github.com/gugahoi/firestore/pkg/cmd/browse"
 	"github.com/gugahoi/firestore/pkg/cmd/collection"
@@ -77,6 +78,7 @@ var host string
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&projectId, "project", "p", "", "Google Cloud Project")
 	rootCmd.PersistentFlags().StringVar(&host, "host", "", "Firestore host (e.g., localhost:8080 for emulator)")
+	rootCmd.AddCommand(api.NewApiCmd())
 	rootCmd.AddCommand(auth.NewAuthCmd())
 	rootCmd.AddCommand(browse.NewBrowseCmd())
 	rootCmd.AddCommand(document.NewDocumentCmd())

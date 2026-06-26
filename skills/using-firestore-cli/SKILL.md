@@ -1,6 +1,6 @@
 ---
 name: using-firestore-cli
-description: Use when the user asks about the `firestore` (alias `fs`) CLI — gugahoi/firestore, a cobra-based terminal for Google Firestore. Trigger on any request to copy/move/delete/edit/query/upload/download Firestore documents or collections, use the interactive vim-style `browse` TUI, hit the raw Firestore REST API escape hatch (`firestore api`), or set up `auth login` / Application Default Credentials / project / emulator configuration for this CLI. Also trigger when the user pastes a `firestore ...` or `fs ...` command, references Miller-column browse navigation, marks, visual-mode bulk delete, `:sort`/`:query`/`:export`/`:goto` command-mode commands, or asks "how do I do X in firestore" (the gugahoi CLI, NOT the gcloud/`firebase` emulators or the Go SDK directly). Make sure to use this skill even for superficially simple one-liners, because the README's browse keybinding table is stale — this skill is the authoritative reference.
+description: Use when the user asks about the `firestore` (alias `fs`) CLI — gugahoi/firestore, a cobra-based terminal for Google Firestore. Trigger on any request to copy/move/delete/edit/query/upload/download Firestore documents or collections, use the interactive vim-style `browse` TUI, hit the raw Firestore REST API escape hatch (`firestore api`), or set up `auth login` / Application Default Credentials / project / emulator configuration for this CLI. Also trigger when the user pastes a `firestore ...` or `fs ...` command, references Miller-column browse navigation, marks, visual-mode bulk delete, `:sort`/`:query`/`:export`/`:goto` command-mode commands, or asks "how do I do X in firestore" (the gugahoi CLI, NOT the gcloud/`firebase` emulators or the Go SDK directly). Make sure to use this skill even for superficially simple one-liners.
 ---
 
 # using-firestore-cli
@@ -10,12 +10,6 @@ description: Use when the user asks about the `firestore` (alias `fs`) CLI — g
 `firestore` (cobra binary, alias `fs`) — a Go terminal for Google Firestore from `github.com/gugahoi/firestore`. Top-level commands: `auth`, `browse`, `document` (`doc`), `collection` (`col`), `api`. Plus cobra's `completion` and `help`.
 
 Everything except `auth` and `completion` requires a project (`-p <project>` flag or `PROJECT_ID` env var). A live `*firestore.Client` is built in `PersistentPreRunE` before any subcommand runs and stashed in `cmd.Context()` under `keys.ClientKey` — so the user never sees that plumbing; they just set `PROJECT_ID` and run commands.
-
-## Why this skill exists
-
-1. README's browse keybinding table is **out of date** — it omits visual mode, marks, tree folding, preview toggle, rename, copy, filter, jumplist, and the entire `:` command-mode system. The authoritative reference is `:man` inside the TUI, mirrored in the **Browse keybindings** section below.
-2. The CLI has sharp edges worth flagging up front: `document mv` refuses docs with subcollections, `api` swaps real ADC for `Bearer owner` when an emulator is set, `-q/--fields` is a CSV mask on `collection query` (not the query alias `q`), `document edit --set` does auto type-coercion.
-3. Credential setup is gcloud-free — `firestore auth login` runs an OAuth2 flow with the well-known gcloud ADC client ID. But it shares the same ADC file as gcloud, so they don't conflict.
 
 ## First-run setup
 
@@ -43,7 +37,7 @@ export FIRESTORE_EMULATOR_HOST=localhost:9090           # OR: firestore --host l
 | `firestore document delete <path>` | `rm` | 1 | |
 | `firestore document edit <path>` | `e` | 1 | `--set field=value` (repeatable, dotted-paths ok) OR interactive `$EDITOR` |
 | `firestore document list <path>` | `ls` | 1 | lists subcollections of a doc |
-| `firestore document move <src> <dst>` | `mv` | 2 | copy+delete — **refuses if src has subcollections** |
+| `firestore document move <src> <dst>` | `mv` | 2 | copy+delete — refuses if src has subcollections |
 | `firestore collection list <col>` | `ls` | 1 | lists doc IDs + create-times |
 | `firestore collection query <col>` | `q` | 1 | `-s/-d/-f/-l/-q/--show-id`; operators `== < > <= >=` |
 | `firestore collection copy <src> <dst>` | `cp` | 2 | recursive incl. subcollections; aggregates per-doc errors |
@@ -52,9 +46,9 @@ export FIRESTORE_EMULATOR_HOST=localhost:9090           # OR: firestore --host l
 | `firestore collection upload <col> <folder>` | `up` | 2 | every `*.json` in folder; basename = doc ID |
 | `firestore api <path>` | — | 1 | authenticated REST escape hatch (see **REST escape hatch**) |
 
-> **Gotcha:** `collection query`'s `-q/--fields <csv>` is a server-side field mask (return only those fields), not a query alias — the alias for `collection query` itself is `q`. Easy to confuse.
+> `collection query`'s `-q/--fields <csv>` is a server-side field mask (return only those fields), not a query alias — the alias for `collection query` itself is `q`.
 >
-> **Flags worth knowing:** `-l 0` means **no limit** (not "zero rows") on `collection query` and `collection download`. `--show-id` defaults to **true** — the doc ID prints even when you set `-q firstName,lastName`. Pass `--show-id=false` to suppress it.
+> `-l 0` means no limit (not "zero rows") on `collection query` and `collection download`. `--show-id` defaults to true — the doc ID prints even when you set `-q firstName,lastName`. Pass `--show-id=false` to suppress it.
 
 ## Common recipes
 
@@ -116,7 +110,7 @@ firestore api 'projects/{project}/databases/{database}/documents:runQuery' -X PO
 - JSON responses are pretty-printed; non-JSON passes through raw.
 - **Emulator swap:** when `FIRESTORE_EMULATOR_HOST` is set, `api` sends `Authorization: Bearer owner` instead of an ADC token — you do not need real credentials to hit a local emulator.
 
-## Browse keybindings (authoritative — see `:man` in the TUI)
+## Browse keybindings
 
 The TUI is launched with `firestore browse [path]` (path optional; odd segments = collection, even = document). Uses Miller columns. Three modes: **NORMAL** (default), **VISUAL** (multi-select + bulk delete), **COMMAND** (`:` prefix, `Tab` autocompletes command names).
 

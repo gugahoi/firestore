@@ -2,3 +2,6 @@ firestore
 
 # skill-creator eval scratch space
 .skill-eval/
+
+# skills CLI lockfile (local install state)
+skills-lock.json

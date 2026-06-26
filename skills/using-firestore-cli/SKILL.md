@@ -63,11 +63,7 @@ firestore document edit /users/abc --set age=42 --set address.city=NYC
 echo '{"name":"ada"}' | firestore document add /users/new
 
 # Server-side query with sort and field mask
-firestore -p demo-flux collection query \
-    -s firstName --direction desc \
-    -f firstName==Vince -f lastName==Petersen \
-    -l 50 -q firstName,lastName \
-    /data
+firestore -p demo-flux collection query -s firstName --direction desc -f firstName==Vince -f lastName==Petersen -l 50 -q firstName,lastName /data
 
 # Recursive copy between collections (incl. subcollections) — staging → live
 firestore -p demo collection cp /staging/orders /live/orders

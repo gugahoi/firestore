@@ -74,12 +74,14 @@ homebrew_casks:
     description: Command line utility to facilitate operations with Firestore
     binaries:
       - firestore
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/firestore"]
-          end
+    # ponytail: emit postflight_steps directly; GoReleaser 2.18's hooks.post.install
+    # still renders Homebrew 7's deprecated `postflight`. Swap to hooks.post.install_steps
+    # once GoReleaser v2.19.0 ships. Outer {{ ` ` }} escapes the literal {{staged_path}}
+    # Homebrew token past Go templating; must_succeed:false replaces the old OS.mac? guard.
+    custom_block: |
+      postflight_steps do
+        run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ `{{staged_path}}` }}/firestore"], must_succeed: false
+      end
 
 changelog:
   sort: asc

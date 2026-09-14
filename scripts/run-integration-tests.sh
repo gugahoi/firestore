@@ -17,8 +17,11 @@ if ! command -v gcloud &>/dev/null; then
     echo "error: gcloud not found — install the Google Cloud SDK" >&2
     exit 1
 fi
-if ! gcloud components list --filter="id=cloud-firestore-emulator" \
-        --format="value(state.name)" 2>/dev/null | grep -qi "installed"; then
+# --only-local-state lists just the locally-installed component ids; matching on
+# the id is robust to gcloud reshuffling the `state.name` column (gcloud 568
+# stopped emitting "Installed" there, breaking the old --format=value(state.name) check).
+if ! gcloud components list --only-local-state --format="value(id)" 2>/dev/null \
+        | grep -qx "cloud-firestore-emulator"; then
     echo "error: cloud-firestore-emulator component not installed" >&2
     echo "       Run: gcloud components install cloud-firestore-emulator" >&2
     exit 1

@@ -53,9 +53,33 @@ jobs:
         args: release --clean --fail-fast
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
 
     - name: Attest release artifacts
       uses: actions/attest@v4
       with:
         subject-checksums: dist/checksums.txt
+
+    # GoReleaser's cask template lags Homebrew's cops (e.g. `# No zap stanza required`,
+    # goreleaser#7253), so autocorrect before publishing; fails on uncorrectable offenses.
+    - name: Set up Homebrew
+      uses: Homebrew/actions/setup-homebrew@main
+
+    - name: Fix Homebrew cask style
+      run: brew style --fix dist/homebrew/Casks/firestore.rb
+
+    - name: Check out tap
+      uses: actions/checkout@v6
+      with:
+        repository: gugahoi/homebrew-tap
+        token: ${{ steps.tap-token.outputs.token }}
+        path: homebrew-tap
+
+    - name: Publish cask
+      working-directory: homebrew-tap
+      run: |
+        cp ../dist/homebrew/Casks/firestore.rb Casks/firestore.rb
+        git config user.name goreleaserbot
+        git config user.email bot@goreleaser.com
+        git add Casks/firestore.rb
+        git commit -m "Brew cask update for firestore version $GITHUB_REF_NAME"
+        git push

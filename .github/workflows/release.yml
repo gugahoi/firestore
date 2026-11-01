@@ -59,27 +59,20 @@ jobs:
       with:
         subject-checksums: dist/checksums.txt
 
-    # GoReleaser's cask template lags Homebrew's cops (e.g. `# No zap stanza required`,
-    # goreleaser#7253), so autocorrect before publishing; fails on uncorrectable offenses.
-    - name: Set up Homebrew
-      uses: Homebrew/actions/setup-homebrew@main
-
-    - name: Fix Homebrew cask style
-      run: brew style --fix dist/homebrew/Casks/firestore.rb
-
-    - name: Check out tap
-      uses: actions/checkout@v6
-      with:
-        repository: gugahoi/homebrew-tap
-        token: ${{ steps.tap-token.outputs.token }}
-        path: homebrew-tap
-
-    - name: Publish cask
-      working-directory: homebrew-tap
+    - name: Update Homebrew cask
+      env:
+        TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
+        TAG: ${{ github.ref_name }}
       run: |
-        cp ../dist/homebrew/Casks/firestore.rb Casks/firestore.rb
-        git config user.name goreleaserbot
-        git config user.email bot@goreleaser.com
-        git add Casks/firestore.rb
-        git commit -m "Brew cask update for firestore version $GITHUB_REF_NAME"
-        git push
+        set -euo pipefail
+        git clone "https://x-access-token:${TAP_TOKEN}@github.com/gugahoi/homebrew-tap.git" homebrew-tap
+        ./scripts/write-cask.sh "${TAG}" dist/checksums.txt homebrew-tap/Casks/firestore.rb
+        git -C homebrew-tap config user.name "github-actions[bot]"
+        git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C homebrew-tap add Casks/firestore.rb
+        if git -C homebrew-tap diff --cached --quiet; then
+          echo "Homebrew cask is already up to date."
+        else
+          git -C homebrew-tap commit -m "Update firestore cask to ${TAG}"
+          git -C homebrew-tap push
+        fi

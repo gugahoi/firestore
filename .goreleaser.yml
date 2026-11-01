@@ -62,25 +62,6 @@ sboms:
   - cmd: syft
     artifacts: archive
 
-homebrew_casks:
-  - name: firestore
-    ids:
-      - default
-    # Rendered only; release.yml runs `brew style --fix` on it and pushes it to the tap.
-    skip_upload: true
-    repository:
-      owner: gugahoi
-      name: homebrew-tap
-    homepage: https://github.com/gugahoi/firestore
-    description: Command-line utility to facilitate operations with Firestore
-    binaries:
-      - firestore
-    # must_succeed:false keeps Linux installs working where /usr/bin/xattr is absent.
-    hooks:
-      post:
-        install_steps: |
-          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/firestore"], must_succeed: false
-
 changelog:
   sort: asc
   filters:

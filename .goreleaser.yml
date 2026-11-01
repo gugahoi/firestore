@@ -62,27 +62,6 @@ sboms:
   - cmd: syft
     artifacts: archive
 
-homebrew_casks:
-  - name: firestore
-    ids:
-      - default
-    repository:
-      owner: gugahoi
-      name: homebrew-tap
-      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
-    homepage: https://github.com/gugahoi/firestore
-    description: Command line utility to facilitate operations with Firestore
-    binaries:
-      - firestore
-    # ponytail: emit postflight_steps directly; GoReleaser 2.18's hooks.post.install
-    # still renders Homebrew 7's deprecated `postflight`. Swap to hooks.post.install_steps
-    # once GoReleaser v2.19.0 ships. Outer {{ ` ` }} escapes the literal {{staged_path}}
-    # Homebrew token past Go templating; must_succeed:false replaces the old OS.mac? guard.
-    custom_block: |
-      postflight_steps do
-        run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ `{{staged_path}}` }}/firestore"], must_succeed: false
-      end
-
 changelog:
   sort: asc
   filters:
